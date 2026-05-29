@@ -1,0 +1,10 @@
+ext {
+    extName = 'MR Tenzus'
+    extClass = '.MRTenzus'
+    themePkg = 'madara'
+    baseUrl = 'https://mrtenzus.com'
+    overrideVersionCode = 0
+    isNsfw = true
+}
+
+apply plugin: "kei.plugins.extension.legacy"

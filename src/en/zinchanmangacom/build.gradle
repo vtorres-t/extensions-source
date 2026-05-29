@@ -2,9 +2,9 @@ ext {
     extName = 'ZinChanManga.com'
     extClass = '.ZinChanMangaCom'
     themePkg = 'madara'
-    baseUrl = 'https://zinchangmanga.com'
-    overrideVersionCode = 2
+    baseUrl = 'https://zinchangmanga.net'
+    overrideVersionCode = 3
     isNsfw = true
 }
 
-apply from: "$rootDir/common.gradle"
+apply plugin: "kei.plugins.extension.legacy"

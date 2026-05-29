@@ -1,9 +1,9 @@
 ext {
     extName = 'MangaSwat'
     extClass = '.MangaSwat'
-    baseUrl = 'https://appswat.com'
-    extVersionCode = 59
+    baseUrl = 'https://meshmanga.com'
+    extVersionCode = 60
     isNsfw = false
 }
 
-apply from: "$rootDir/common.gradle"
+apply plugin: "kei.plugins.extension.legacy"

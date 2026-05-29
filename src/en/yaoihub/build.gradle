@@ -2,9 +2,9 @@ ext {
     extName = 'Yaoihub'
     extClass = '.Yaoihub'
     themePkg = 'madara'
-    baseUrl = 'https://yaoihub.com'
-    overrideVersionCode = 0
+    baseUrl = 'https://yaoihub.net'
+    overrideVersionCode = 1
     isNsfw = true
 }
 
-apply from: "$rootDir/common.gradle"
+apply plugin: "kei.plugins.extension.legacy"

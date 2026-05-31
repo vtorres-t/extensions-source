@@ -38,6 +38,5 @@ class EmperorScan :
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()
-
     }
 }

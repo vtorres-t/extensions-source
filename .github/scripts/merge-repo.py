@@ -61,8 +61,8 @@ index = index_pb2.Index(
             name=extension["name"].replace("Tachiyomi: ", ""),
             packageName=extension["pkg"],
             resources=index_pb2.Resources(
-                apkUrl=f"https://raw.githubusercontent.com/keiyoushi/extensions/refs/heads/repo/apk/{extension["apk"]}",
-                iconUrl=f"https://raw.githubusercontent.com/keiyoushi/extensions/refs/heads/repo/icon/{extension["pkg"]}.png",
+                apkUrl=f"https://raw.githubusercontent.com/vtorres-t/ext/refs/heads/repo/apk/{extension["apk"]}",
+                iconUrl=f"https://raw.githubusercontent.com/vtorres-t/ext/refs/heads/repo/icon/{extension["pkg"]}.png",
             ),
             extensionLib=extract_extension_lib(extension["version"]),
             versionCode=extension["code"],

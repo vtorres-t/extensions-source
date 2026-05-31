@@ -14,4 +14,3 @@ class MangaDexFactory : SourceFactory {
 class MangaDexEnglish : MangaDex("en")
 class MangaDexSpanishLatinAmerica : MangaDex("es-419", "es-la")
 class MangaDexSpanishSpain : MangaDex("es")
-

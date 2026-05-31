@@ -11,4 +11,3 @@ class GlobalComixFactory : SourceFactory {
 }
 class GlobalComixEnglish : GlobalComix("en")
 class GlobalComixSpanish : GlobalComix("es")
-

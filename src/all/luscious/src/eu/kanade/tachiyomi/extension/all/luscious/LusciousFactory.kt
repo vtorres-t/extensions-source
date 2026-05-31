@@ -15,4 +15,3 @@ class LusciousFactory : SourceFactory {
 class LusciousEN : Luscious("en")
 class LusciousES : Luscious("es")
 class LusciousOTHER : Luscious("other")
-class LusciousALL : Luscious("all")

@@ -39,9 +39,9 @@ jobs:
           persist-credentials: false
 
       - name: Get last successful CI commit
-        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
+        uses: nrwl/nx-set-shas@a33300d0973a04be9b9a5227cd812e6672bff5ad # v5.0.1
         with:
-          fallback-sha: 4b825dc642cb6eb9a060e54bf8d69288fbee4904 # empty tree
+          fallback-sha: a33300d0973a04be9b9a5227cd812e6672bff5ad # empty tree
 
       - id: generate-matrices
         name: Create output matrices

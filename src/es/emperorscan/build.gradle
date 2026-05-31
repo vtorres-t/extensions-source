@@ -3,7 +3,7 @@ ext {
     extClass = '.EmperorScan'
     themePkg = 'madara'
     baseUrl = 'https://imperiomanhua.com'
-    overrideVersionCode = 13
+    overrideVersionCode = 14
     isNsfw = false
 }
 

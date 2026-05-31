@@ -49,12 +49,9 @@ def extract_extension_lib(version: str) -> str:
     raise ValueError(f"Version {version} doesn't contain MAJOR.MINOR")
 
 index = index_pb2.Index(
-    name = "Keiyoushi",
-    badgeLabel = "KEI",
+    name = "Keiyoushi-vt",
+    badgeLabel = "VT",
     signingKey = "DE0FDC4BC621BC9F68495CB030F4F23421D3257BA9A6DEBF3295C4076841C77B",
-    contact=index_pb2.Contact(
-        website="https://keiyoushi.github.io"
-    ),
     extensions=[
         index_pb2.Extension(
             name=extension["name"].replace("Tachiyomi: ", ""),

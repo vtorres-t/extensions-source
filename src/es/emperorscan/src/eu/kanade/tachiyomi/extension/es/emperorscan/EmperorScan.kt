@@ -44,7 +44,7 @@ class EmperorScan :
 
         // 2. Filtra eliminando los que contengan "soberano" (sin importar mayúsculas/minúsculas)
         return chapters.filterNot { chapter ->
-            chapter.name.contains("Soberano Vip", ignoreCase = true)
+            chapter.name.contains("Vip", ignoreCase = true)
         }
     }
 

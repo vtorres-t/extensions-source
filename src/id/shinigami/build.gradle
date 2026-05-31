@@ -1,7 +1,0 @@
-ext {
-    extName = 'Shinigami'
-    extClass = '.Shinigami'
-    extVersionCode = 78
-}
-
-apply plugin: "kei.plugins.extension.legacy"

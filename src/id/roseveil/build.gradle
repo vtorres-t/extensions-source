@@ -1,8 +1,0 @@
-ext {
-    extName = 'Roseveil'
-    extClass = '.Roseveil'
-    extVersionCode = 46
-    isNsfw = true
-}
-
-apply plugin: "kei.plugins.extension.legacy"

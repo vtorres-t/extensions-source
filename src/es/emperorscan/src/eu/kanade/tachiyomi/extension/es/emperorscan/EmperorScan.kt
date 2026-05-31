@@ -34,7 +34,7 @@ class EmperorScan :
 
     override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item:has(h5:contains(Sinopsis)) div"
 
-    override val mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:contains(Estado) + div"
+    override val mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:has(h5:contains(Estado)) + div"
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()

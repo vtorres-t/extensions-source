@@ -7,7 +7,5 @@ class KoharuFactory : SourceFactory {
     override fun createSources(): List<Source> = listOf(
         Koharu(),
         Koharu("en", "english"),
-        Koharu("ja", "japanese"),
-        Koharu("zh", "chinese"),
     )
 }

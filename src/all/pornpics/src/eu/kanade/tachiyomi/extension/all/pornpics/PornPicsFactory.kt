@@ -6,6 +6,5 @@ class PornPicsFactory : SourceFactory {
 
     override fun createSources() = listOf(
         PornPics("en"),
-        PornPics("zh"),
     )
 }

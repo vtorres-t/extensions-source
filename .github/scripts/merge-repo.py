@@ -51,10 +51,9 @@ def extract_extension_lib(version: str) -> str:
 index = index_pb2.Index(
     name = "Keiyoushi",
     badgeLabel = "KEI",
-    signingKey = "9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2",
+    signingKey = "DE0FDC4BC621BC9F68495CB030F4F23421D3257BA9A6DEBF3295C4076841C77B",
     contact=index_pb2.Contact(
-        website="https://keiyoushi.github.io",
-        discord="https://discord.gg/3FbCpdKbdY"
+        website="https://keiyoushi.github.io"
     ),
     extensions=[
         index_pb2.Extension(

@@ -48,10 +48,6 @@ class EmperorScan :
             .filterNot { chapter ->
                 chapter.name.contains("Vip", ignoreCase = true)
             }
-            // Elimina nombres duplicados, conservando SIEMPRE el primero encontrado
-//            .distinctBy { chapter ->
-//                chapter.name.trim()
-//            }
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {

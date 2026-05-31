@@ -34,7 +34,17 @@ class EmperorScan :
 
     override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item:has(h5:contains(Sinopsis)) div"
 
-    override val mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:has(h5:contains(Estado)) + div"
+    override val mangaDetailsSelectorStatus = "div.summary-content, div.summary-heading:has(h5:contains(Estado)) div"
+
+    override fun chapterListParse(response: Response): List<SChapter> {
+        // 1. Obtiene la lista completa procesada originalmente por el CMS Madara
+        val chapters = super.chapterListParse(response)
+
+        // 2. Filtra eliminando los que contengan "soberano" (sin importar mayúsculas/minúsculas)
+        return chapters.filterNot { chapter ->
+            chapter.name.contains("Soberano Vip", ignoreCase = true)
+        }
+    }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()

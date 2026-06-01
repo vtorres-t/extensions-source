@@ -18,7 +18,6 @@ import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.toJsonString
-import kotlinx.serialization.SerializationException
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -43,16 +42,18 @@ class OlympusScanlation :
 
     private val fetchedDomainUrl: String by lazy {
         if (!preferences.fetchDomainPref()) return@lazy preferences.prefBaseUrl
+        val initClient = network.client
+        val headers = super.headersBuilder().build()
         try {
-            val initClient = network.client
-            val headers = super.headersBuilder().build()
             val document = initClient.newCall(GET("https://olympus.pages.dev", headers)).execute().asJsoup()
-            val domain = document.selectFirst("meta[property=og:url]")?.attr("content")
+            val domain = document.selectFirst("meta[property=og:url]")?.attr("abs:content")
                 ?: return@lazy preferences.prefBaseUrl
-            val host = initClient.newCall(GET(domain, headers)).execute().request.url.host
-            val newDomain = "https://$host"
-            preferences.prefBaseUrl = newDomain
-            newDomain
+
+            initClient.newCall(GET(domain, headers)).execute().use { resp ->
+                val newDomain = "https://${resp.request.url.host}"
+                preferences.prefBaseUrl = newDomain
+                newDomain
+            }
         } catch (_: Exception) {
             preferences.prefBaseUrl
         }
@@ -115,16 +116,14 @@ class OlympusScanlation :
 
         val series = result.parseAs<PayloadMangaDto>()
 
-        val comics = series.data.asSequence()
+        val comics = series.data
             .filter { it.type == "comic" }
-            .toList()
 
         seriesList = comics
         lastFetchTime = now
 
-        val newSlugMap = comics.associate { it.id to it.slug }
-
-        preferences.slugMap += newSlugMap
+        // Actualización eficiente del mapa
+        updateSlugMap(comics.associate { it.id to it.slug })
     }
 
     override fun fetchPopularManga(page: Int): Observable<MangasPage> {
@@ -133,21 +132,20 @@ class OlympusScanlation :
     }
 
     override fun popularMangaRequest(page: Int): Request {
-        val apiUrl = "$baseUrl/api/rankings?page=$page&period=total_ranking".toHttpUrl().newBuilder()
-            .build()
+        val apiUrl = "$baseUrl/api/rankings?page=$page&period=total_ranking"
         return GET(apiUrl, headers)
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
         val result = response.parseAs<RankingDto>()
-        val slugMap = preferences.slugMap.toMutableMap()
+        val updates = mutableMapOf<Int, String>()
         val mangaList = result.data
             .filter { it.type == "comic" }
             .map {
-                slugMap[it.id] = it.slug
+                updates[it.id] = it.slug
                 it.toSManga()
             }
-        preferences.slugMap = slugMap
+        updateSlugMap(updates)
         return MangasPage(mangaList, hasNextPage = result.hasNextPage())
     }
 
@@ -157,20 +155,19 @@ class OlympusScanlation :
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
-        val apiUrl = "$baseUrl/api/new-chapters?page=$page".toHttpUrl().newBuilder()
-            .build()
+        val apiUrl = "$baseUrl/api/new-chapters?page=$page"
         return GET(apiUrl, headers)
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage {
         val result = response.parseAs<NewChaptersDto>()
-        val slugMap = preferences.slugMap.toMutableMap()
+        val updates = mutableMapOf<Int, String>()
         val mangaList = result.data.filter { it.type == "comic" }
             .map {
-                slugMap[it.id] = it.slug
+                updates[it.id] = it.slug
                 it.toSManga()
             }
-        preferences.slugMap = slugMap
+        updateSlugMap(updates)
         return MangasPage(mangaList, result.hasNextPage())
     }
 
@@ -180,10 +177,17 @@ class OlympusScanlation :
     }
 
     private fun parseSearchManga(page: Int, query: String): MangasPage {
-        val filteredList = seriesList.filter { it.name.contains(query, ignoreCase = true) }
-        val paginatedList = filteredList.drop((page - 1) * 20).take(20)
-        val hasNextPage = page * 20 < filteredList.size
-        return MangasPage(paginatedList.map { it.toSManga() }, hasNextPage)
+        val queryLower = query.lowercase()
+        val filteredList = seriesList.filter { it.name.lowercase().contains(queryLower) }
+
+        // Usar coerceAtMost para evitar IndexOutOfBounds
+        val fromIndex = (page - 1) * 20
+        if (fromIndex >= filteredList.size) return MangasPage(emptyList(), false)
+
+        val toIndex = (fromIndex + 20).coerceAtMost(filteredList.size)
+        val paginated = filteredList.subList(fromIndex, toIndex)
+
+        return MangasPage(paginated.map { it.toSManga() }, toIndex < filteredList.size)
     }
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList) = throw UnsupportedOperationException()
@@ -247,9 +251,11 @@ class OlympusScanlation :
         var page = 2
         while (data.meta.total > resultSize) {
             val newRequest = paginatedChapterListRequest(slug, mangaId, page)
-            val newResponse = client.newCall(newRequest).execute()
-            val newData = newResponse.parseAs<PayloadChapterDto>()
-            data.data += newData.data
+            val newData = client.newCall(newRequest).execute().parseAs<PayloadChapterDto>()
+
+            if (newData.data.isEmpty()) break
+
+            data.data = data.data + newData.data
             resultSize += newData.data.size
             page += 1
         }
@@ -307,22 +313,30 @@ class OlympusScanlation :
 
     private fun SharedPreferences.fetchDomainPref() = getBoolean(FETCH_DOMAIN_PREF, FETCH_DOMAIN_PREF_DEFAULT)
 
-    private var slugMapCache: Map<Int, String>? = null
-    private var SharedPreferences.slugMap: Map<Int, String>
+    private var slugMapCache: MutableMap<Int, String>? = null
+
+    private var SharedPreferences.slugMap: MutableMap<Int, String>
         get() {
-            slugMapCache?.let { return it }
-            val json = getString(SLUG_MAP, "{}")!!
-            slugMapCache = try {
-                json.parseAs<Map<Int, String>>()
-            } catch (_: SerializationException) {
-                emptyMap()
+            if (slugMapCache == null) {
+                val json = getString(SLUG_MAP, "{}") ?: "{}"
+                slugMapCache = try {
+                    json.parseAs<Map<Int, String>>().toMutableMap()
+                } catch (_: Exception) {
+                    mutableMapOf()
+                }
             }
             return slugMapCache!!
         }
-        set(map) {
-            slugMapCache = map
-            edit().putString(SLUG_MAP, map.toJsonString()).apply()
+        set(value) {
+            slugMapCache = value
+            edit().putString(SLUG_MAP, value.toJsonString()).apply()
         }
+
+    private fun updateSlugMap(newEntries: Map<Int, String>) {
+        val currentMap = preferences.slugMap
+        currentMap.putAll(newEntries)
+        preferences.slugMap = currentMap
+    }
 
     companion object {
         private const val BASE_URL_PREF = "overrideBaseUrl"

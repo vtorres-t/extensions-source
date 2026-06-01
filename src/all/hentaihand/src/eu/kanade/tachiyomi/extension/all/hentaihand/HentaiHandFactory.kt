@@ -31,4 +31,3 @@ class HentaiHandNoText : HentaiHandCommon("other", listOf(6)) {
     override val id: Long = 7302549142935671434
 }
 class HentaiHandEs : HentaiHandCommon("es", listOf(33, 37))
-

@@ -10,8 +10,5 @@ class XkcdFactory : SourceFactory {
     override fun createSources() = listOf(
         Xkcd("https://xkcd.com", "en"),
         XkcdES(),
-        XkcdZH(),
-        XkcdFR(),
-        XkcdRU(),
     )
 }

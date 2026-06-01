@@ -89,6 +89,11 @@ abstract class Madara(
     private var genresFetched: Boolean = false
 
     /**
+     * Guard to prevent concurrent genre fetches.
+     */
+    private var isFetchingGenres: Boolean = false
+
+    /**
      * Inner variable to control how much tries the genres request was called.
      */
     private var fetchGenresAttempts: Int = 0
@@ -803,11 +808,12 @@ abstract class Madara(
     open val seriesTypeSelector = ".post-content_item:contains(Type) .summary-content"
     open val altNameSelector = ".post-content_item:contains(Alt) .summary-content"
     open val altName = intl["alt_names_heading"]
-    open val updatingRegex = "Updating|Atualizando".toRegex(RegexOption.IGNORE_CASE)
 
     fun String.notUpdating(): Boolean = this.contains(updatingRegex).not()
 
-    private fun String.containsIn(array: Array<String>): Boolean = this.lowercase() in array.map { it.lowercase() }
+    private fun String.containsIn(array: Array<String>): Boolean {
+        return array.any { it.equals(this, ignoreCase = true) }
+    }
 
     protected open fun imageFromElement(element: Element): String? = when {
         element.hasAttr("data-src") -> element.attr("abs:data-src")
@@ -823,7 +829,7 @@ abstract class Madara(
      */
     protected open fun String.getSrcSetImage(): String? = this.split(" ")
         .filter(URL_REGEX::matches)
-        .maxOfOrNull(String::toString)
+        .maxOrNull()
 
     /**
      *  Apply any additional processing to the thumbnail URL if needed.
@@ -873,20 +879,21 @@ abstract class Madara(
             } else {
                 oldXhrChaptersRequest(mangaId)
             }
-            var xhrResponse = client.newCall(xhrRequest).execute()
+            
+            val xhrResponse = client.newCall(xhrRequest).execute().use { resp ->
+                // Newer Madara versions throws HTTP 400 when using the old endpoint.
+                if (!useNewChapterEndpoint && resp.code == 400) {
+                    // Set it to true so following calls will be made directly to the new endpoint.
+                    oldChapterEndpointDisabled = true
 
-            // Newer Madara versions throws HTTP 400 when using the old endpoint.
-            if (!useNewChapterEndpoint && xhrResponse.code == 400) {
-                xhrResponse.close()
-                // Set it to true so following calls will be made directly to the new endpoint.
-                oldChapterEndpointDisabled = true
-
-                xhrRequest = xhrChaptersRequest(mangaUrl)
-                xhrResponse = client.newCall(xhrRequest).execute()
+                    val retryRequest = xhrChaptersRequest(mangaUrl)
+                    client.newCall(retryRequest).execute()
+                } else {
+                    resp
+                }
             }
 
             chapterElements = xhrResponse.asJsoup().select(chapterListSelector())
-            xhrResponse.close()
         }
 
         return chapterElements.map(::chapterFromElement)
@@ -932,7 +939,7 @@ abstract class Madara(
 
         return when {
             // Handle 'yesterday' and 'today', using midnight
-            WordSet("yesterday", "يوم واحد").startsWith(date) -> {
+            WS_YESTERDAY.startsWith(date) -> {
                 Calendar.getInstance().apply {
                     add(Calendar.DAY_OF_MONTH, -1) // yesterday
                     set(Calendar.HOUR_OF_DAY, 0)
@@ -942,7 +949,7 @@ abstract class Madara(
                 }.timeInMillis
             }
 
-            WordSet("today").startsWith(date) -> {
+            WS_TODAY.startsWith(date) -> {
                 Calendar.getInstance().apply {
                     set(Calendar.HOUR_OF_DAY, 0)
                     set(Calendar.MINUTE, 0)
@@ -951,7 +958,7 @@ abstract class Madara(
                 }.timeInMillis
             }
 
-            WordSet("يومين").startsWith(date) -> {
+            WS_TWO_DAYS.startsWith(date) -> {
                 Calendar.getInstance().apply {
                     add(Calendar.DAY_OF_MONTH, -2) // day before yesterday
                     set(Calendar.HOUR_OF_DAY, 0)
@@ -961,11 +968,11 @@ abstract class Madara(
                 }.timeInMillis
             }
 
-            WordSet("ago", "atrás", "önce", "قبل", "trước").endsWith(date) -> {
+            WS_AGO.endsWith(date) -> {
                 parseRelativeDate(date)
             }
 
-            WordSet("hace", "năm", "tháng", "tuần", "ngày", "giờ", "phút", "giây").startsWith(date) -> {
+            WS_HACE.startsWith(date) -> {
                 parseRelativeDate(date)
             }
 
@@ -997,13 +1004,13 @@ abstract class Madara(
         val cal = Calendar.getInstance()
 
         return when {
-            WordSet("hari", "gün", "jour", "día", "dia", "day", "วัน", "ngày", "giorni", "أيام", "天").anyWordIn(date) -> cal.apply { add(Calendar.DAY_OF_MONTH, -number) }.timeInMillis
-            WordSet("jam", "saat", "heure", "hora", "hour", "ชั่วโมง", "giờ", "ore", "ساعة", "小时").anyWordIn(date) -> cal.apply { add(Calendar.HOUR, -number) }.timeInMillis
-            WordSet("menit", "dakika", "min", "minute", "minuto", "นาที", "دقائق", "phút").anyWordIn(date) -> cal.apply { add(Calendar.MINUTE, -number) }.timeInMillis
-            WordSet("detik", "segundo", "second", "วินาที", "giây").anyWordIn(date) -> cal.apply { add(Calendar.SECOND, -number) }.timeInMillis
-            WordSet("week", "semana", "tuần").anyWordIn(date) -> cal.apply { add(Calendar.DAY_OF_MONTH, -number * 7) }.timeInMillis
-            WordSet("month", "mes", "tháng").anyWordIn(date) -> cal.apply { add(Calendar.MONTH, -number) }.timeInMillis
-            WordSet("year", "año", "năm").anyWordIn(date) -> cal.apply { add(Calendar.YEAR, -number) }.timeInMillis
+            WS_DAYS.anyWordIn(date) -> cal.apply { add(Calendar.DAY_OF_MONTH, -number) }.timeInMillis
+            WS_HOURS.anyWordIn(date) -> cal.apply { add(Calendar.HOUR, -number) }.timeInMillis
+            WS_MINS.anyWordIn(date) -> cal.apply { add(Calendar.MINUTE, -number) }.timeInMillis
+            WS_SECS.anyWordIn(date) -> cal.apply { add(Calendar.SECOND, -number) }.timeInMillis
+            WS_WEEKS.anyWordIn(date) -> cal.apply { add(Calendar.DAY_OF_MONTH, -number * 7) }.timeInMillis
+            WS_MONTHS.anyWordIn(date) -> cal.apply { add(Calendar.MONTH, -number) }.timeInMillis
+            WS_YEARS.anyWordIn(date) -> cal.apply { add(Calendar.YEAR, -number) }.timeInMillis
             else -> 0
         }
     }
@@ -1112,7 +1119,7 @@ abstract class Madara(
 
         try {
             val request = countViewsRequest(document) ?: return
-            client.newCall(request).execute().close()
+            client.newCall(request).execute().use { }
         } catch (_: Exception) { }
     }
 
@@ -1120,20 +1127,20 @@ abstract class Madara(
      * Fetch the genres from the source to be used in the filters.
      */
     protected fun fetchGenres() {
-        if (fetchGenres && fetchGenresAttempts < 3 && !genresFetched) {
+        if (fetchGenres && fetchGenresAttempts < 3 && !genresFetched && !isFetchingGenres) {
+            isFetchingGenres = true
             try {
-                client.newCall(genresRequest()).execute()
+                val fetchedGenres = client.newCall(genresRequest()).execute()
                     .use { parseGenres(it.asJsoup()) }
-                    .also {
-                        genresFetched = true
-                    }
-                    .takeIf { it.isNotEmpty() }
-                    ?.also {
-                        genresList = it
-                    }
+
+                if (fetchedGenres.isNotEmpty()) {
+                    genresList = fetchedGenres
+                    genresFetched = true
+                }
             } catch (_: Exception) {
             } finally {
                 fetchGenresAttempts++
+                isFetchingGenres = false
             }
         }
     }
@@ -1167,6 +1174,21 @@ abstract class Madara(
     companion object {
         const val URL_SEARCH_PREFIX = "slug:"
         val URL_REGEX = """^(https?://[^\s/$.?#].[^\s]*)${'$'}""".toRegex()
+        val updatingRegex = "Updating|Atualizando".toRegex(RegexOption.IGNORE_CASE)
+
+        // Static WordSets to avoid repeated allocations during parsing
+        private val WS_YESTERDAY = WordSet("yesterday", "يوم واحد")
+        private val WS_TODAY = WordSet("today")
+        private val WS_TWO_DAYS = WordSet("يومين")
+        private val WS_AGO = WordSet("ago", "atrás", "önce", "قبل", "trước")
+        private val WS_HACE = WordSet("hace", "năm", "tháng", "tuần", "ngày", "giờ", "phút", "giây")
+        private val WS_DAYS = WordSet("hari", "gün", "jour", "día", "dia", "day", "วัน", "ngày", "giorni", "أيام", "天")
+        private val WS_HOURS = WordSet("jam", "saat", "heure", "hora", "hour", "ชั่วโมง", "giờ", "ore", "ساعة", "小时")
+        private val WS_MINS = WordSet("menit", "dakika", "min", "minute", "minuto", "นาที", "دقائق", "phút")
+        private val WS_SECS = WordSet("detik", "segundo", "second", "วินาที", "giây")
+        private val WS_WEEKS = WordSet("week", "semana", "tuần")
+        private val WS_MONTHS = WordSet("month", "mes", "tháng")
+        private val WS_YEARS = WordSet("year", "año", "năm")
     }
 }
 

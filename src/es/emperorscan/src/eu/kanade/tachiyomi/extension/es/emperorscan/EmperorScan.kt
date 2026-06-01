@@ -44,9 +44,13 @@ class EmperorScan :
 
         // 2. Filtra y limpia la lista
         return chapters
-            // Descarta los que contienen la palabra "soberano"
+            // Descarta los que contienen la palabra "vip"
             .filterNot { chapter ->
                 chapter.name.contains("Vip", ignoreCase = true)
+            }
+            // Elimina nombres duplicados, conservando SIEMPRE el primero encontrado
+            .distinctBy { chapter ->
+                chapter.name.trim()
             }
     }
 

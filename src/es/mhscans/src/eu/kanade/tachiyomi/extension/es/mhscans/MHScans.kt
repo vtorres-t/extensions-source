@@ -49,49 +49,6 @@ class MHScans :
         return "$baseSelector:not(.premium)"
     }
 
-    override fun pageListParse(document: Document): List<Page> {
-        super.pageListParse(document).also {
-            if (it.isNotEmpty()) return it
-        }
-
-        val html = document.html()
-
-        val chapterId = document.selectFirst("#wp-manga-current-chap")?.attr("data-id")
-            ?.takeIf { it.isNotEmpty() }
-            ?: throw Exception("Could not find chapter ID")
-        val mangaId = document.selectFirst("#manga-reading-nav-head")?.attr("data-id")
-            ?.takeIf { it.isNotEmpty() }
-            ?: throw Exception("Could not find manga ID")
-
-        // Request the token and reader URL
-        val ajaxHeaders = headers.newBuilder()
-            .add("X-Requested-With", "XMLHttpRequest")
-            .build()
-
-        val tokenBody = FormBody.Builder()
-            .add("action", "rk_get_token")
-            .add("chapter_id", chapterId)
-            .add("manga_id", mangaId)
-            .build()
-
-        val tokenData = client.newCall(POST("$baseUrl/wp-admin/admin-ajax.php", ajaxHeaders, tokenBody))
-            .execute()
-            .parseAs<RkTokenResponse>().data
-
-        // Fetch the decoy reader page with the token
-        val readerBody = FormBody.Builder()
-            .add("rt", tokenData.token)
-            .add("chapter_id", tokenData.chapterId.toString())
-            .add("manga_id", tokenData.mangaId.toString())
-            .build()
-
-        val readerDocument = client.newCall(POST(tokenData.readerUrl, headers, readerBody)).execute().asJsoup()
-
-        return readerDocument.select("div.rk-page-wrap img, img.rk-img").mapIndexed { i, img ->
-            Page(i, imageUrl = img.attr("abs:src").ifEmpty { img.attr("abs:data-src") })
-        }
-    }
-
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = REMOVE_PREMIUM_CHAPTERS
@@ -108,7 +65,5 @@ class MHScans :
     companion object {
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
-
-        private val NONCE_REGEX = """nonce["']\s*[:=]\s*["']([^"']+)""".toRegex()
     }
 }

@@ -9,7 +9,7 @@ class HadesNoFansub :
         "Hades no Fansub",
         "https://lectorhades.latamtoon.com",
         "es",
-        dateFormat = SimpleDateFormat("MM/dd/yyyy", Locale("es")),
+        dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es")),
     ) {
     override val useNewChapterEndpoint = true
 

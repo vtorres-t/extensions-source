@@ -47,12 +47,14 @@ abstract class MangaThemesia(
     override fun headersBuilder() = super.headersBuilder()
         .set("Referer", "$baseUrl/")
 
-    protected val intl = Intl(
+    protected val intl by lazy = Intl(
         language = lang,
         baseLanguage = "en",
         availableLanguages = setOf("en", "es"),
         classLoader = javaClass.classLoader!!,
     )
+
+    private val locale = Locale.forLanguageTag(lang)
 
     open val projectPageString = "/project"
 
@@ -91,7 +93,7 @@ abstract class MangaThemesia(
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder()
-            .addPathSegment(mangaUrlDirectory.substring(1))
+            .addPathSegments(mangaUrlDirectory.removePrefix("/"))
             .addQueryParameter("title", query)
             .addQueryParameter("page", page.toString())
 
@@ -272,9 +274,9 @@ abstract class MangaThemesia(
             // Add series type (manga/manhwa/manhua/other) to genre
             seriesDetails.selectFirst(seriesTypeSelector)?.ownText().takeIf { it.isNullOrBlank().not() }?.let { genres.add(it) }
             genre = genres.map { genre ->
-                genre.lowercase(Locale.forLanguageTag(lang)).replaceFirstChar { char ->
+                genre.lowercase(locale).replaceFirstChar { char ->
                     if (char.isLowerCase()) {
-                        char.titlecase(Locale.forLanguageTag(lang))
+                        char.titlecase(locale)
                     } else {
                         char.toString()
                     }
@@ -292,26 +294,10 @@ abstract class MangaThemesia(
     open fun String?.parseStatus(): Int = when {
         this == null -> SManga.UNKNOWN
 
-        listOf(
-            "مستمرة", "en curso", "ongoing", "on going", "ativo", "en cours", "en cours de publication",
-            "đang tiến hành", "em lançamento", "онгоінг", "publishing", "devam ediyor", "em andamento",
-            "in corso", "güncel", "berjalan", "продолжается", "updating", "lançando", "in arrivo",
-            "emision", "en emision", "مستمر", "curso", "en marcha", "publicandose", "publicando",
-            "连载中", "devam etmekte", "連載中",
-        ).any { this.contains(it, ignoreCase = true) } -> SManga.ONGOING
-
-        listOf(
-            "completed", "completo", "complété", "fini", "achevé", "terminé", "tamamlandı", "đã hoàn thành",
-            "hoàn thành", "مكتملة", "завершено", "finished", "finalizado", "completata", "one-shot",
-            "bitti", "tamat", "completado", "concluído", "完結", "concluido", "已完结", "bitmiş",
-        ).any { this.contains(it, ignoreCase = true) } -> SManga.COMPLETED
-
-        listOf("canceled", "cancelled", "cancelado", "cancellato", "cancelados", "dropped", "discontinued", "abandonné")
-            .any { this.contains(it, ignoreCase = true) } -> SManga.CANCELLED
-
-        listOf("hiatus", "on hold", "pausado", "en espera", "en pause", "en attente", "hiato")
-            .any { this.contains(it, ignoreCase = true) } -> SManga.ON_HIATUS
-
+        STATUS_ONGOING.any { this.contains(it, ignoreCase = true) } -> SManga.ONGOING
+        STATUS_COMPLETED.any { this.contains(it, ignoreCase = true) } -> SManga.COMPLETED
+        STATUS_CANCELLED.any { this.contains(it, ignoreCase = true) } -> SManga.CANCELLED
+        STATUS_HIATUS.any { this.contains(it, ignoreCase = true) } -> SManga.ON_HIATUS
         else -> SManga.UNKNOWN
     }
 
@@ -337,7 +323,7 @@ abstract class MangaThemesia(
         return chapters
     }
 
-    private fun parseUpdatedOnDate(date: String): Long = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(date)?.time ?: 0L
+    private fun parseUpdatedOnDate(date: String): Long = UPDATED_ON_DATE_FORMAT.parse(date)?.time ?: 0L
 
     protected open fun chapterFromElement(element: Element) = SChapter.create().apply {
         val urlElements = element.select("a")
@@ -598,17 +584,15 @@ abstract class MangaThemesia(
 
         val potentiallyChapterUrl = pathLengthIs(url, 1)
         if (potentiallyChapterUrl) {
-            val response = client.newCall(GET(urlString, headers)).execute()
-            if (response.isSuccessful.not()) {
-                response.close()
-                throw IllegalStateException("HTTP error ${response.code}")
-            } else if (response.isSuccessful) {
-                val links = response.asJsoup().select("a[itemprop=item]")
-                //  near the top of page: home > manga > current chapter
-                if (links.size == 3) {
-                    val newUrl = links[1].attr("href").toHttpUrlOrNull() ?: return null
-                    val isNewMangaUrl = (baseMangaUrl.host == newUrl.host && pathLengthIs(newUrl, 2) && newUrl.pathSegments[0] == baseMangaUrl.pathSegments[0])
-                    if (isNewMangaUrl) return newUrl.pathSegments[1]
+            client.newCall(GET(urlString, headers)).execute().use { response ->
+                if (response.isSuccessful) {
+                    val links = response.asJsoup().select("a[itemprop=item]")
+                    //  near the top of page: home > manga > current chapter
+                    if (links.size == 3) {
+                        val newUrl = links[1].attr("href").toHttpUrlOrNull() ?: return null
+                        val isNewMangaUrl = (baseMangaUrl.host == newUrl.host && pathLengthIs(newUrl, 2) && newUrl.pathSegments[0] == baseMangaUrl.pathSegments[0])
+                        if (isNewMangaUrl) return newUrl.pathSegments[1]
+                    }
                 }
             }
         }
@@ -646,5 +630,42 @@ abstract class MangaThemesia(
         private val CHAPTER_PAGE_ID_REGEX = "chapter_id\\s*=\\s*(\\d+);".toRegex()
 
         val JSON_IMAGE_LIST_REGEX = "\"images\"\\s*:\\s*(\\[.*?])".toRegex()
+
+        private val UPDATED_ON_DATE_FORMAT by lazy { SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH) }
+
+        private val STATUS_ONGOING = setOf(
+            "مستمرة", "en curso", "ongoing", "on going", "ativo", "en cours", "en cours de publication",
+            "đang tiến hành", "em lanzamiento", "онгоінг", "publishing", "devam ediyor", "em andamento",
+            "in corso", "güncel", "berjalan", "продолжается", "updating", "lançando", "in arrivo",
+            "emision", "en emision", "مستمر", "curso", "en marcha", "publicandose", "publicando",
+            "连载中", "devam etmekte", "連載中",
+        )
+
+        private val STATUS_COMPLETED = setOf(
+            "completed", "completo", "complété", "fini", "achevé", "terminé", "tamamlandı", "đã hoàn thành",
+            "hoàn thành", "مكتملة", "завершено", "finished", "finalizado", "completata", "one-shot",
+            "bitti", "tamat", "completado", "concluído", "完結", "concluido", "已完结", "bitmiş",
+        )
+
+        private val STATUS_CANCELLED = setOf(
+            "canceled",
+            "cancelled",
+            "cancelado",
+            "cancellato",
+            "cancelados",
+            "dropped",
+            "discontinued",
+            "abandonné",
+        )
+
+        private val STATUS_HIATUS = setOf(
+            "hiatus",
+            "on hold",
+            "pausado",
+            "en espera",
+            "en pause",
+            "en attente",
+            "hiato",
+        )
     }
 }

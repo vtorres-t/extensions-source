@@ -29,8 +29,9 @@ class TaurusFansub :
     override val useNewChapterEndpoint = true
     override val useLoadMoreRequest = LoadMoreStrategy.Always
 
-    override val popularMangaUrlSelectorImg = "div.manga__thumb_item img"
-    override val mangaDetailsSelectorTitle = "div.post-title h1"
+    override val popularMangaUrlSelectorImg = ".manga__thumb_item img"
+
+    override val mangaDetailsSelectorTitle = "h1.post-title"
     override val mangaDetailsSelectorStatus = "div.manga-status span:last-child"
     override val mangaDetailsSelectorDescription = "div.summary__content p"
 

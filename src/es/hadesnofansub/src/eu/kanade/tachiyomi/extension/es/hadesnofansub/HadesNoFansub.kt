@@ -8,8 +8,7 @@ class HadesNoFansub :
     Madara(
         "Hades no Fansub",
         "https://lectorhades.latamtoon.com",
-        "es",
-        dateFormat = SimpleDateFormat("MM/dd/yyyy", Locale("es")),
+        "es"),
     ) {
     override val useNewChapterEndpoint = true
 

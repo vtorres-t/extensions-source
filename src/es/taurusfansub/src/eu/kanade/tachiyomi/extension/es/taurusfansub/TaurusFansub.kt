@@ -19,7 +19,7 @@ class TaurusFansub :
         "Taurus Fansub",
         "https://lectortaurus.com",
         "es",
-        dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT),
+        dateFormat = DATE_FORMATTER,
     ),
     ConfigurableSource {
     override val client = super.client.newBuilder()
@@ -29,32 +29,23 @@ class TaurusFansub :
     override val useNewChapterEndpoint = true
     override val useLoadMoreRequest = LoadMoreStrategy.Always
 
-    override val popularMangaUrlSelectorImg = ".manga__thumb_item img"
-
-    override val mangaDetailsSelectorTitle = "h1.post-title"
+    override val popularMangaUrlSelectorImg = "div.manga__thumb_item img"
+    override val mangaDetailsSelectorTitle = "div.post-title h1"
     override val mangaDetailsSelectorStatus = "div.manga-status span:last-child"
     override val mangaDetailsSelectorDescription = "div.summary__content p"
 
     override fun parseGenres(document: Document): List<Genre> = document.select(".genres-filter .options a")
         .mapNotNull { element ->
-            val id = element.absUrl("href").toHttpUrlOrNull()?.queryParameter("genre")
-            val name = element.text()
-
-            id?.takeIf { it.isNotEmpty() && name.isNotBlank() }
-                ?.let { Genre(name, it) }
+            val name = element.text().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val id = element.absUrl("href").toHttpUrlOrNull()?.queryParameter("genre")?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            Genre(name, id)
         }
 
-    private val preferences: SharedPreferences = getPreferences()
+    private val preferences: SharedPreferences by lazy { getPreferences() }
 
     override fun chapterListSelector(): String {
-        val baseSelector = super.chapterListSelector()
-        val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
-
-        if (!removePremium) {
-            return baseSelector
-        }
-
-        return "$baseSelector:not(.scheduled)"
+        val base = super.chapterListSelector()
+        return if (preferences.removePremium) "$base:not(.scheduled)" else base
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -70,7 +61,11 @@ class TaurusFansub :
         }.also { screen.addPreference(it) }
     }
 
+    private val SharedPreferences.removePremium
+        get() = getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
+
     companion object {
+        private val DATE_FORMATTER = SimpleDateFormat("dd/MM/yyyy", Locale.ROOT)
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
     }

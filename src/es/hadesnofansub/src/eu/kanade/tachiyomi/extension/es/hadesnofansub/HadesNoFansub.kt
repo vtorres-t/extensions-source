@@ -11,7 +11,7 @@ class HadesNoFansub :
         "es",
         dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es")),
     ) {
-    override val useNewChapterEndpoint = true
+    override val useNewChapterEndpoint = false
 
     override val mangaSubString = "tmo"
 

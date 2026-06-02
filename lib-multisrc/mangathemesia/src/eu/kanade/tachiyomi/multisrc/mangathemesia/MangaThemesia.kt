@@ -639,7 +639,7 @@ abstract class MangaThemesia(
             "مستمرة", "en curso", "ongoing", "on going", "ativo", "en cours", "en cours de publication",
             "đang tiến hành", "em lanzamiento", "онгоінг", "publishing", "devam ediyor", "em andamento",
             "in corso", "güncel", "berjalan", "продолжается", "updating", "lançando", "in arrivo",
-            "emision", "en emision", "مستمر", "curso", "en marcha", "publicandose", "publicando",
+            "emision", "en emision", "مستمر", "curso", "en marcha", "publicandose", "Publicándose", "publicando",
             "连载中", "devam etmekte", "連載中",
         )
 

@@ -811,9 +811,7 @@ abstract class Madara(
 
     fun String.notUpdating(): Boolean = this.contains(updatingRegex).not()
 
-    private fun String.containsIn(array: Array<String>): Boolean {
-        return array.any { it.equals(this, ignoreCase = true) }
-    }
+    private fun String.containsIn(array: Array<String>): Boolean = array.any { it.equals(this, ignoreCase = true) }
 
     protected open fun imageFromElement(element: Element): String? = when {
         element.hasAttr("data-src") -> element.attr("abs:data-src")
@@ -879,7 +877,7 @@ abstract class Madara(
             } else {
                 oldXhrChaptersRequest(mangaId)
             }
-            
+
             val xhrResponse = client.newCall(xhrRequest).execute().use { resp ->
                 // Newer Madara versions throws HTTP 400 when using the old endpoint.
                 if (!useNewChapterEndpoint && resp.code == 400) {

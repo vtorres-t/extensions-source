@@ -17,5 +17,4 @@ class HadesNoFansub :
     override val mangaDetailsSelectorStatus = "div.post-content_item:has(h5:contains(Status)) div.summary-content"
 
     override val mangaDetailsSelectorTag = "div.tags-content a.notUsed" // Site uses this for the scanlator
-
 }

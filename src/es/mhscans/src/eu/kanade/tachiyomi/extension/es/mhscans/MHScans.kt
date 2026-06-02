@@ -113,6 +113,6 @@ class MHScans :
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
 
-        private val NONCE_REGEX = """"nonce"\s*:\s*"([^"]+)"""".toRegex()
+        private val NONCE_REGEX = """["']nonce["']\s*[:=]\s*["']([^"']+)["']""".toRegex()
     }
 }

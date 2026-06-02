@@ -21,5 +21,5 @@ class HadesNoFansub :
 
     override val mangaDetailsSelectorTag = "div.tags-content a.notUsed" // Site uses this for the scanlator
 
-    override val chapterDateSelector = "span.chapter-release-date span.timediff"
+    override fun chapterDateSelector() = "span.chapter-release-date span.timediff"
 }

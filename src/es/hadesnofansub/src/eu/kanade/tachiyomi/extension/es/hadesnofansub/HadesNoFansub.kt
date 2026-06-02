@@ -8,7 +8,7 @@ class HadesNoFansub :
     Madara(
         "Hades no Fansub",
         "https://lectorhades.latamtoon.com",
-        "es"),
+        "es",
     ) {
     override val useNewChapterEndpoint = true
 

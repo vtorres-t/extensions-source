@@ -47,12 +47,14 @@ abstract class MangaThemesia(
     override fun headersBuilder() = super.headersBuilder()
         .set("Referer", "$baseUrl/")
 
-    protected val intl by lazy = Intl(
-        language = lang,
-        baseLanguage = "en",
-        availableLanguages = setOf("en", "es"),
-        classLoader = javaClass.classLoader!!,
-    )
+    protected val intl by lazy {
+        Intl(
+            language = lang,
+            baseLanguage = "en",
+            availableLanguages = setOf("en", "es"),
+            classLoader = javaClass.classLoader!!,
+        )
+    }
 
     private val locale = Locale.forLanguageTag(lang)
 

@@ -1,8 +1,6 @@
 package eu.kanade.tachiyomi.extension.es.hadesnofansub
 
 import eu.kanade.tachiyomi.multisrc.madara.Madara
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 class HadesNoFansub :
     Madara(

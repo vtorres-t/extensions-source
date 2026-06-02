@@ -56,9 +56,6 @@ class MHScans :
 
         val html = document.html()
 
-        val nonce = NONCE_REGEX.find(html)?.groupValues?.get(1)
-            ?: throw Exception("Could not find the security nonce")
-
         val chapterId = document.selectFirst("#wp-manga-current-chap")?.attr("data-id")
             ?.takeIf { it.isNotEmpty() }
             ?: throw Exception("Could not find chapter ID")
@@ -73,7 +70,6 @@ class MHScans :
 
         val tokenBody = FormBody.Builder()
             .add("action", "rk_get_token")
-            .add("nonce", nonce)
             .add("chapter_id", chapterId)
             .add("manga_id", mangaId)
             .build()

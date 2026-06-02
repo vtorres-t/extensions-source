@@ -877,21 +877,20 @@ abstract class Madara(
             } else {
                 oldXhrChaptersRequest(mangaId)
             }
+            var xhrResponse = client.newCall(xhrRequest).execute()
 
-            val xhrResponse = client.newCall(xhrRequest).execute().use { resp ->
-                // Newer Madara versions throws HTTP 400 when using the old endpoint.
-                if (!useNewChapterEndpoint && resp.code == 400) {
-                    // Set it to true so following calls will be made directly to the new endpoint.
-                    oldChapterEndpointDisabled = true
+            // Newer Madara versions throws HTTP 400 when using the old endpoint.
+            if (!useNewChapterEndpoint && xhrResponse.code == 400) {
+                xhrResponse.close()
+                // Set it to true so following calls will be made directly to the new endpoint.
+                oldChapterEndpointDisabled = true
 
-                    val retryRequest = xhrChaptersRequest(mangaUrl)
-                    client.newCall(retryRequest).execute()
-                } else {
-                    resp
-                }
+                xhrRequest = xhrChaptersRequest(mangaUrl)
+                xhrResponse = client.newCall(xhrRequest).execute()
             }
 
             chapterElements = xhrResponse.asJsoup().select(chapterListSelector())
+            xhrResponse.close()
         }
 
         return chapterElements.map(::chapterFromElement)
@@ -1117,7 +1116,7 @@ abstract class Madara(
 
         try {
             val request = countViewsRequest(document) ?: return
-            client.newCall(request).execute().use { }
+            client.newCall(request).execute().close()
         } catch (_: Exception) { }
     }
 

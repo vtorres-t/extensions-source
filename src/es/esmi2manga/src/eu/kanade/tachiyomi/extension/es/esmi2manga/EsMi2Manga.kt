@@ -59,6 +59,8 @@ class EsMi2Manga :
 
                     if (generosDelManga != null) {
                         !regexFiltro.containsMatchIn(generosDelManga)
+                    } else {
+                        true
                     }
                 }
 

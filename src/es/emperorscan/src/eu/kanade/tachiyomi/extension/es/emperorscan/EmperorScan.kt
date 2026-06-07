@@ -94,6 +94,8 @@ class EmperorScan :
 
                     if (generosDelManga != null) {
                         !regexFiltro.containsMatchIn(generosDelManga)
+                    } else {
+                        true
                     }
                 }
 

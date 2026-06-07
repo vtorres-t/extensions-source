@@ -99,6 +99,8 @@ class MHScans :
 
                     if (generosDelManga != null) {
                         !regexFiltro.containsMatchIn(generosDelManga)
+                    } else {
+                        true
                     }
                 }
 

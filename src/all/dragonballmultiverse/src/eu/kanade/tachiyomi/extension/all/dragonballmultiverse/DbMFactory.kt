@@ -16,4 +16,3 @@ class DbMFactory : SourceFactory {
 class DbMultiverseEN : DbMultiverse("en", "en")
 class DbMultiverseES : DbMultiverse("es", "es")
 class DbMultiverseES_CO : DbMultiverse("es-419", "es_CO")
-

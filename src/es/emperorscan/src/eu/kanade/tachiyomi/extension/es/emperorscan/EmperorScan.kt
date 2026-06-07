@@ -39,22 +39,37 @@ class EmperorScan :
     override val mangaDetailsSelectorStatus = "div.post-content_item:has(h5:contains(Estado)) div.summary-content"
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        // 1. Obtiene la lista completa procesada originalmente por el CMS Madara
         val chapters = super.chapterListParse(response)
+        val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
-        // 2. Filtra y limpia la lista
-        return chapters
-            // Descarta los que contienen la palabra "vip"
-            .filterNot { chapter ->
+        val filteredChapters = if (removePremium) {
+            chapters.filterNot { chapter ->
                 chapter.name.contains("Vip", ignoreCase = true)
             }
-            // Elimina nombres duplicados, conservando SIEMPRE el primero encontrado
-            .distinctBy { chapter ->
-                chapter.name.trim()
-            }
+        } else {
+            chapters
+        }
+
+        return filteredChapters.distinctBy { chapter ->
+            chapter.name.trim()
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()
+        SwitchPreferenceCompat(screen.context).apply {
+            key = REMOVE_PREMIUM_CHAPTERS
+            title = "Filtrar capítulos VIP"
+            summary = "Oculta automáticamente los capítulos VIP"
+            setDefaultValue(REMOVE_PREMIUM_CHAPTERS_DEFAULT)
+            setOnPreferenceChangeListener { _, _ ->
+                Toast.makeText(screen.context, "Para aplicar los cambios, actualiza la lista de capítulos", Toast.LENGTH_LONG).show()
+                true
+            }
+        }.also { screen.addPreference(it) }
+    }
+
+    companion object {
+        private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
+        private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
     }
 }

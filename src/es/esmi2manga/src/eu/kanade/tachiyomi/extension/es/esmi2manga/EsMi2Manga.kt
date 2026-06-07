@@ -17,7 +17,9 @@ class EsMi2Manga :
         "https://es.mi2manga.com",
         "es",
         SimpleDateFormat("MMMM dd, yyyy", Locale("es")),
-    ) {
+    ),
+    ConfigurableSource {
+
     override val client = super.client.newBuilder()
         .rateLimit(2, 1, TimeUnit.SECONDS)
         .build()

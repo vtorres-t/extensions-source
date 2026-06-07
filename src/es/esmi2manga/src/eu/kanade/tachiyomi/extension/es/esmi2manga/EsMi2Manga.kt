@@ -65,9 +65,6 @@ class EsMi2Manga :
         }.also(screen::addPreference)
     }
 
-        screen.addPreference(regexPreference)
-    }
-
     companion object {
         private const val REGEX_FILTER_KEY = "genre_regex_filter"
         private const val REGEX_FILTER_DEFAULT = "BL|Boy|Smut|Yaoi|Adult"

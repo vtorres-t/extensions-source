@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
+import android.widget.Toast
 import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.interceptor.rateLimitHost
 import eu.kanade.tachiyomi.source.ConfigurableSource
@@ -42,16 +44,20 @@ class EmperorScan :
         val chapters = super.chapterListParse(response)
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
-        val filteredChapters = if (removePremium) {
-            chapters.filterNot { chapter ->
-                chapter.name.contains("Vip", ignoreCase = true)
+        return chapters
+            .let { list ->
+                if (removePremium) {
+                    list.filterNot { chapter ->
+                        chapter.name.contains("Vip", ignoreCase = true) ||
+                            chapter.name.contains("Soberano", ignoreCase = true)
+                    }
+                } else {
+                    list
+                }
             }
-        } else {
-            chapters
-        }
-
-        return filteredChapters.distinctBy { chapter ->
-            chapter.name.trim()
+            .distinctBy { chapter ->
+                chapter.name.trim()
+            }
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {

@@ -27,31 +27,28 @@ class EsMi2Manga :
     private val preferences: SharedPreferences = getPreferences()
 
     override fun getFilterList(): FilterList {
-        val filtros = super.getFilterList()
         val regexString = preferences.getString(REGEX_FILTER_KEY, REGEX_FILTER_DEFAULT) ?: ""
 
-        if (regexString.isNotBlank()) {
+        if (regexString.isNotBlank() && genresList.isNotEmpty()) {
             try {
                 val regexFiltro = Regex(regexString, RegexOption.IGNORE_CASE)
-                val fltGen = filtros.filterIsInstance<GenreList>().firstOrNull()
 
-                if (fltGen != null) {
-                    fltGen.vals = fltGen.vals.filter { genre ->
-                        !regexFiltro.containsMatchIn(genre.name)
-                    }.toTypedArray()
+                genresList = genresList.filter { genre ->
+                    !regexFiltro.containsMatchIn(genre.name)
                 }
             } catch (e: Exception) {
+                // Captura fallos si el usuario escribe un patrón Regex incorrecto en los ajustes
             }
         }
 
-        return filtros
+        return super.getFilterList()
     }
 
-    override fun setupPreferenceScreen(screen: PreferenceScreen) {
-        val regexPreference = EditTextPreference(screen.context).apply {
+    override fun setupPreferences(screen: PreferenceScreen) {
+        EditTextPreference(screen.context).apply {
             key = REGEX_FILTER_KEY
             title = "Filtrar géneros por Expresión Regular"
-            summary = "Escribe los géneros que deseas ocultar separados por una barra vertical |. Ejemplo: hentai|adulto|gore"
+            summary = "Escribe los géneros que deseas ocultar separados por |. Ejemplo: BL|18|Smut"
             dialogTitle = "Expresión Regular de Exclusión"
             dialogMessage = "Sintaxis estándar de Regex (case-insensitive)"
             setDefaultValue(REGEX_FILTER_DEFAULT)
@@ -65,7 +62,8 @@ class EsMi2Manga :
                     false
                 }
             }
-        }
+        }.also(screen::addPreference)
+    }
 
         screen.addPreference(regexPreference)
     }

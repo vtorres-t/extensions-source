@@ -6,6 +6,7 @@ import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.model.FilterList
+import keiyoushi.utils.getPreferences
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -44,11 +45,11 @@ class EsMi2Manga :
         return super.getFilterList()
     }
 
-    override fun setupPreferences(screen: PreferenceScreen) {
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
         EditTextPreference(screen.context).apply {
             key = REGEX_FILTER_KEY
             title = "Filtrar géneros por Expresión Regular"
-            summary = "Escribe los géneros que deseas ocultar separados por |. Ejemplo: BL|18|Smut"
+            summary = "Escribe los géneros que deseas ocultar separados por |. Ejemplo: BL|18|Yaoi"
             dialogTitle = "Expresión Regular de Exclusión"
             dialogMessage = "Sintaxis estándar de Regex (case-insensitive)"
             setDefaultValue(REGEX_FILTER_DEFAULT)
@@ -62,7 +63,7 @@ class EsMi2Manga :
                     false
                 }
             }
-        }.also(screen::addPreference)
+        }.also { screen.addPreference(it) }
     }
 
     companion object {

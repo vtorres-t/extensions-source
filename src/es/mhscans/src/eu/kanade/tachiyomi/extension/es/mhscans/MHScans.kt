@@ -10,11 +10,13 @@ import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.getPreferences
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import org.jsoup.nodes.Document
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -68,6 +70,44 @@ class MHScans :
         return document.select("div.rk-page-wrap img, img.rk-img").mapIndexed { i, img ->
             Page(i, imageUrl = img.attr("abs:src").ifEmpty { img.attr("abs:data-src") })
         }
+    }
+
+    override fun popularMangaParse(response: Response): MangasPage {
+        val mangasPage = super.popularMangaParse(response)
+        return filterMangasPage(mangasPage)
+    }
+
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val mangasPage = super.latestUpdatesParse(response)
+        return filterMangasPage(mangasPage)
+    }
+
+    override fun searchMangaParse(response: Response): MangasPage {
+        val mangasPage = super.searchMangaParse(response)
+        return filterMangasPage(mangasPage)
+    }
+
+    private fun filterMangasPage(mangasPage: MangasPage): MangasPage {
+        val regexString = preferences.getString(REGEX_FILTER_KEY, REGEX_FILTER_DEFAULT) ?: ""
+
+        if (regexString.isNotBlank() && mangasPage.mangas.isNotEmpty()) {
+            try {
+                val regexFiltro = Regex(regexString, RegexOption.IGNORE_CASE)
+
+                val mangasFiltrados = mangasPage.mangas.filter { manga ->
+                    val generosDelManga = manga.genre
+
+                    if (generosDelManga != null) {
+                        !regexFiltro.containsMatchIn(generosDelManga)
+                    }
+                }
+
+                return MangasPage(mangasFiltrados, mangasPage.hasNextPage)
+            } catch (e: Exception) {
+                // Captura fallos si el usuario escribe un patrón Regex incorrecto en los ajustes
+            }
+        }
+        return mangasPage
     }
 
     override fun getFilterList(): FilterList {

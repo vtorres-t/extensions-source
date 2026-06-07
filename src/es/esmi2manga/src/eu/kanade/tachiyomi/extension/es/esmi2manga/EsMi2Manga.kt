@@ -7,7 +7,9 @@ import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import keiyoushi.utils.getPreferences
+import okhttp3.Response
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -29,6 +31,44 @@ class EsMi2Manga :
     override fun searchMangaSelector() = "div.site-content div.c-tabs-item__content"
 
     private val preferences: SharedPreferences = getPreferences()
+
+    override fun popularMangaParse(response: Response): MangasPage {
+        val mangasPage = super.popularMangaParse(response)
+        return filterMangasPage(mangasPage)
+    }
+
+    override fun latestUpdatesParse(response: Response): MangasPage {
+        val mangasPage = super.latestUpdatesParse(response)
+        return filterMangasPage(mangasPage)
+    }
+
+    override fun searchMangaParse(response: Response): MangasPage {
+        val mangasPage = super.searchMangaParse(response)
+        return filterMangasPage(mangasPage)
+    }
+
+    private fun filterMangasPage(mangasPage: MangasPage): MangasPage {
+        val regexString = preferences.getString(REGEX_FILTER_KEY, REGEX_FILTER_DEFAULT) ?: ""
+
+        if (regexString.isNotBlank() && mangasPage.mangas.isNotEmpty()) {
+            try {
+                val regexFiltro = Regex(regexString, RegexOption.IGNORE_CASE)
+
+                val mangasFiltrados = mangasPage.mangas.filter { manga ->
+                    val generosDelManga = manga.genre
+
+                    if (generosDelManga != null) {
+                        !regexFiltro.containsMatchIn(generosDelManga)
+                    }
+                }
+
+                return MangasPage(mangasFiltrados, mangasPage.hasNextPage)
+            } catch (e: Exception) {
+                // Captura fallos si el usuario escribe un patrón Regex incorrecto en los ajustes
+            }
+        }
+        return mangasPage
+    }
 
     override fun getFilterList(): FilterList {
         val regexString = preferences.getString(REGEX_FILTER_KEY, REGEX_FILTER_DEFAULT) ?: ""

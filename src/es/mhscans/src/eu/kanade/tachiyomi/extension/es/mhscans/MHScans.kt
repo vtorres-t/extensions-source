@@ -33,7 +33,7 @@ class MHScans :
         .build()
 
     override val useNewChapterEndpoint = true
-    override val useLoadMoreRequest = LoadMoreStrategy.Always
+    override val useLoadMoreRequest = LoadMoreStrategy.AutoDetect
 
     private val preferences: SharedPreferences = getPreferences()
 

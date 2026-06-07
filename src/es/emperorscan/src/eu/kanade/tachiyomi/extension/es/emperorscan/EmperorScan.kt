@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
+import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
@@ -39,6 +40,8 @@ class EmperorScan :
     override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item:has(h5:contains(Sinopsis)) div"
 
     override val mangaDetailsSelectorStatus = "div.post-content_item:has(h5:contains(Estado)) div.summary-content"
+
+    private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val chapters = super.chapterListParse(response)

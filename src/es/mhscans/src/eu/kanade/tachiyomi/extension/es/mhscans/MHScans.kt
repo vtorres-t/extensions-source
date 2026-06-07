@@ -29,7 +29,7 @@ class MHScans :
     override val mangaSubString = "series"
 
     override val client: OkHttpClient = super.client.newBuilder()
-        .rateLimit(1, 3, TimeUnit.SECONDS)
+        .rateLimit(2, 3, TimeUnit.SECONDS)
         .build()
 
     override val useNewChapterEndpoint = true

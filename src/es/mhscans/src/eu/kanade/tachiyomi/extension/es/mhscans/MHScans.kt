@@ -2,12 +2,14 @@ package eu.kanade.tachiyomi.extension.es.mhscans
 
 import android.content.SharedPreferences
 import android.widget.Toast
+import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.interceptor.rateLimit
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.utils.getPreferences
@@ -68,6 +70,24 @@ class MHScans :
         }
     }
 
+    override fun getFilterList(): FilterList {
+        val regexString = preferences.getString(REGEX_FILTER_KEY, REGEX_FILTER_DEFAULT) ?: ""
+
+        if (regexString.isNotBlank() && genresList.isNotEmpty()) {
+            try {
+                val regexFiltro = Regex(regexString, RegexOption.IGNORE_CASE)
+
+                genresList = genresList.filter { genre ->
+                    !regexFiltro.containsMatchIn(genre.name)
+                }
+            } catch (e: Exception) {
+                // Captura fallos si el usuario escribe un patrón Regex incorrecto en los ajustes
+            }
+        }
+
+        return super.getFilterList()
+    }
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = REMOVE_PREMIUM_CHAPTERS
@@ -79,10 +99,31 @@ class MHScans :
                 true
             }
         }.also { screen.addPreference(it) }
+
+        EditTextPreference(screen.context).apply {
+            key = REGEX_FILTER_KEY
+            title = "Filtrar géneros por Expresión Regular"
+            summary = "Escribe los géneros que deseas ocultar separados por |. Ejemplo: BL|18|Yaoi"
+            dialogTitle = "Expresión Regular de Exclusión"
+            dialogMessage = "Sintaxis estándar de Regex (case-insensitive)"
+            setDefaultValue(REGEX_FILTER_DEFAULT)
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val stringValue = newValue as String
+                try {
+                    Regex(stringValue)
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }.also { screen.addPreference(it) }
     }
 
     companion object {
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
+        private const val REGEX_FILTER_KEY = "genre_regex_filter"
+        private const val REGEX_FILTER_DEFAULT = ""
     }
 }

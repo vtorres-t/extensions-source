@@ -122,7 +122,6 @@ class OlympusScanlation :
         seriesList = comics
         lastFetchTime = now
 
-        // Actualización eficiente del mapa
         updateSlugMap(comics.associate { it.id to it.slug })
     }
 

@@ -1,5 +1,7 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
+import android.content.SharedPreferences
+import android.widget.Toast
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara

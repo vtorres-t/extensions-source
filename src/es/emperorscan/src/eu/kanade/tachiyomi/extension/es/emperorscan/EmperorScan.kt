@@ -1,16 +1,14 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
-import android.content.SharedPreferences
-import android.widget.Toast
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
-import eu.kanade.tachiyomi.network.interceptor.rateLimitHost
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.lib.randomua.addRandomUAPreference
 import keiyoushi.lib.randomua.setRandomUserAgent
+import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
@@ -25,12 +23,13 @@ class EmperorScan :
         SimpleDateFormat("MMMM dd, yyyy", Locale("es")),
     ),
     ConfigurableSource {
+    private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
     override val useLoadMoreRequest = LoadMoreStrategy.Never
     override val useNewChapterEndpoint = true
 
     override val client = super.client.newBuilder()
-        .rateLimitHost(baseUrl.toHttpUrl(), 2)
+        .rateLimit(2) { it.host == baseUrlHost }
         .build()
 
     override fun headersBuilder() = super.headersBuilder()

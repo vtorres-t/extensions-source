@@ -45,9 +45,9 @@ class OlympusScanlation :
 
     private val fetchedDomainUrl: String by lazy {
         if (!preferences.fetchDomainPref()) return@lazy preferences.prefBaseUrl
-        val initClient = network.client
-        val headers = super.headersBuilder().build()
         try {
+            val initClient = network.client
+            val headers = super.headersBuilder().build()
             val document = initClient.newCall(GET("https://olympus.pages.dev", headers)).execute().asJsoup()
             val domain = document.selectFirst("meta[property=og:url]")?.attr("abs:content")
                 ?: return@lazy preferences.prefBaseUrl

@@ -3,3 +3,22 @@
 
 * text=auto eol=lf
 *.bat text eol=crlf
+
+/src/ar/**/* merge=ours
+/src/ca/**/* merge=ours
+/src/bg/**/* merge=ours
+/src/cs/**/* merge=ours
+/src/de/**/* merge=ours
+/src/fr/**/* merge=ours
+/src/id/**/* merge=ours
+/src/it/**/* merge=ours
+/src/ja/**/* merge=ours
+/src/ko/**/* merge=ours
+/src/pl/**/* merge=ours
+/src/pt/**/* merge=ours
+/src/ru/**/* merge=ours
+/src/th/**/* merge=ours
+/src/tr/**/* merge=ours
+/src/uk/**/* merge=ours
+/src/vi/**/* merge=ours
+/src/zh/**/* merge=ours

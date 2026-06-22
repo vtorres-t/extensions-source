@@ -1,3 +1,4 @@
+import gzip
 import html
 import sys
 import json
@@ -52,30 +53,36 @@ index = index_pb2.Index(
     name = "Keiyoushi-vt",
     badgeLabel = "VT",
     signingKey = "DE0FDC4BC621BC9F68495CB030F4F23421D3257BA9A6DEBF3295C4076841C77B",
-    extensions=[
-        index_pb2.Extension(
-            name=extension["name"].replace("Tachiyomi: ", ""),
-            packageName=extension["pkg"],
-            resources=index_pb2.Resources(
-                apkUrl=f"https://raw.githubusercontent.com/vtorres-t/ext/refs/heads/repo/apk/{extension["apk"]}",
-                iconUrl=f"https://raw.githubusercontent.com/vtorres-t/ext/refs/heads/repo/icon/{extension["pkg"]}.png",
-            ),
-            extensionLib=extract_extension_lib(extension["version"]),
-            versionCode=extension["code"],
-            versionName=extension["version"],
-            sources=[
-                index_pb2.Source(
-                    id=int(source["id"]),
-                    name=source["name"],
-                    language=source["lang"],
-                    homeUrl=source["baseUrl"],
-                    contentRating=index_pb2.ContentRating.CONTENT_RATING_PORNOGRAPHIC if extension["nsfw"] == 1 else index_pb2.CONTENT_RATING_SAFE,
-                )
-                for source in extension["sources"]
-            ]
-        )
-        for extension in legacy_index
-    ]
+    contact=index_pb2.Contact(
+        website="https://keiyoushi.github.io",
+        discord="https://discord.gg/3FbCpdKbdY"
+    ),
+    extensionList=index_pb2.ExtensionList(
+        extensions=[
+            index_pb2.Extension(
+                name=extension["name"].replace("Tachiyomi: ", ""),
+                packageName=extension["pkg"],
+                resources=index_pb2.Resources(
+                    apkUrl=f"https://raw.githubusercontent.com/vtorres-t/ext/refs/heads/repo/apk/{extension["apk"]}",
+                    iconUrl=f"https://raw.githubusercontent.com/vtorres-t/ext/refs/heads/repo/icon/{extension["pkg"]}.png",
+                ),
+                extensionLib=extract_extension_lib(extension["version"]),
+                versionCode=extension["code"],
+                versionName=extension["version"],
+                contentWarning=index_pb2.CONTENT_WARNING_NSFW if extension["nsfw"] == 1 else index_pb2.CONTENT_WARNING_SAFE,
+                sources=[
+                    index_pb2.Source(
+                        id=int(source["id"]),
+                        name=source["name"],
+                        language=source["lang"],
+                        homeUrl=source["baseUrl"],
+                    )
+                    for source in extension["sources"]
+                ]
+            )
+            for extension in legacy_index
+        ]
+    )
 )
 
 with REMOTE_REPO.joinpath("index.json").open("w", encoding="utf-8") as index_file:
@@ -83,6 +90,9 @@ with REMOTE_REPO.joinpath("index.json").open("w", encoding="utf-8") as index_fil
 
 with REMOTE_REPO.joinpath("index.pb").open("wb") as index_pb_file:
     index_pb_file.write(index.SerializeToString())
+
+with REMOTE_REPO.joinpath("index.pb.gz").open("wb") as index_pb_file:
+    index_pb_file.write(gzip.compress(index.SerializeToString()))
 
 with REMOTE_REPO.joinpath("index.min.json").open("w", encoding="utf-8") as index_min_file:
     json.dump(legacy_index, index_min_file, ensure_ascii=False, separators=(",", ":"))

@@ -63,7 +63,7 @@ class OlympusScanlation :
     }
 
     private val apiBaseUrl by lazy {
-        fetchedDomainUrl.replace("https://", "https://dashboard.")
+        fetchedDomainUrl.replace("https://", "https://panel.")
     }
 
     override val lang: String = "es"

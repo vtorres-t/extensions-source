@@ -3,8 +3,8 @@ name: Sincronizar y Limpiar Fork
 on:
   schedule:
     # Se ejecuta automáticamente todos los días a la medianoche (UTC)
-    - cron: '0 0 * * *'
-  workflow_dispatch: # Permite ejecutar el flujo manualmente desde la pestaña Actions
+    - cron: '0 0,12 * * *'
+  workflow_dispatch:
 
 jobs:
   sync-fork:

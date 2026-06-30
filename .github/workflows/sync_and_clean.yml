@@ -75,7 +75,7 @@ jobs:
             git push origin main
           
             # Limpieza: elimina la rama temporal local y remota
-            git branch -d $BRANCH_NAME
+            git branch -D $BRANCH_NAME
           else
             echo "::error::Conflictos detectados durante el merge. Se requiere intervención manual."
             git merge --abort

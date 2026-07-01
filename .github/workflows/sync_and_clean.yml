@@ -132,9 +132,7 @@ jobs:
           if ! git merge upstream/main --no-commit --no-ff; then
             echo "⚠️ Conflictos detectados durante el merge. Preparando Pull Request..."
           
-            echo "${{ secrets.BUILD_PREVIEW_TOKEN }}" | gh auth login --with-token
-          
-            EXISTING_PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
+            EXISTING_PR=$(GH_TOKEN="${{ secrets.BUILD_PREVIEW_TOKEN }}" gh pr list --repo "$GITHUB_REPOSITORY" --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
           
             if [ "$EXISTING_PR" -gt 0 ]; then
               echo "✅ Ya existe un Pull Request abierto para resolver estos conflictos. No se creará otro."
@@ -154,7 +152,7 @@ jobs:
             git commit -m "chore: conflictos detectados al sincronizar con upstream"
             git push origin conflict-sync --force
 
-            gh pr create \
+            GH_TOKEN="${{ secrets.BUILD_PREVIEW_TOKEN }}" gh pr create \
               --repo "$GITHUB_REPOSITORY" \
               --title "⚠️ Resolver conflictos de sincronización" \
               --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \

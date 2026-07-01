@@ -151,6 +151,8 @@ jobs:
             git add .
             git commit -m "chore: conflictos detectados al sincronizar con upstream"
             git push origin conflict-sync --force
+          
+            echo "${{ secrets.BUILD_PREVIEW_TOKEN }}" | gh auth login --with-token
 
             gh pr create \
               --title "⚠️ Resolver conflictos de sincronización" \

@@ -48,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pasa el token a la GitHub CLI
         run: |
-          git checkout main
+          git checkout -B main origin/main
           
           # Función de limpieza avanzada combinada
           advanced_clean_processor() {
@@ -132,7 +132,9 @@ jobs:
           if ! git merge upstream/main --no-commit --no-ff; then
             echo "⚠️ Conflictos detectados durante el merge. Preparando Pull Request..."
           
-            EXISTING_PR=$(gh pr list --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
+            echo "${{ secrets.BUILD_PREVIEW_TOKEN }}" | gh auth login --with-token
+          
+            EXISTING_PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
           
             if [ "$EXISTING_PR" -gt 0 ]; then
               echo "✅ Ya existe un Pull Request abierto para resolver estos conflictos. No se creará otro."
@@ -151,10 +153,9 @@ jobs:
             git add .
             git commit -m "chore: conflictos detectados al sincronizar con upstream"
             git push origin conflict-sync --force
-          
-            echo "${{ secrets.BUILD_PREVIEW_TOKEN }}" | gh auth login --with-token
 
             gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
               --title "⚠️ Resolver conflictos de sincronización" \
               --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \
               --base main \

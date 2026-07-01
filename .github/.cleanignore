@@ -1,0 +1,4 @@
+# Indica las rutas exactas de los archivos o carpetas que NO deben borrarse bajo ninguna circunstancia
+src/all
+src/es
+src/en

@@ -23,19 +23,18 @@ jobs:
       - name: Configurar Git
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "41898282+github-actions[bot]@://github.com"
 
       - name: Agregar repositorio padre (Upstream)
         run: |
-          # URL por la del repositorio original (padre)
-          git remote add upstream https://github.com/keiyoushi/extensions-source
-          git fetch upstream main
+          git remote add upstream https://github.com/Suwayomi/Suwayomi-WebUI
+          git fetch upstream master
 
       - name: Verificar si hay actualizaciones
         id: check_changes
         run: |
           LOCAL=$(git rev-parse HEAD)
-          UPSTREAM=$(git rev-parse upstream/main)
+          UPSTREAM=$(git rev-parse upstream/master)
           if [ "$LOCAL" = "$UPSTREAM" ]; then
             echo "No hay actualizaciones en el repositorio padre. Terminando correctamente."
             echo "has_updates=false" >> $GITHUB_OUTPUT
@@ -49,14 +48,91 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pasa el token a la GitHub CLI
         run: |
-          git checkout main
+          git checkout master
           
-          # Intenta realizar la fusión. Si falla (retorna un error), ejecutamos el bloque de manejo de conflictos.
-          if ! git merge upstream/main --no-commit --no-ff; then
+          # Función de limpieza avanzada combinada
+          advanced_clean_processor() {
+            echo "Iniciando purgación avanzada..."
+          
+            PATH_CONFIG=".github/.cleanpaths"
+            IGNORE_CONFIG=".github/.cleanignore"
+
+            # Validaciones de seguridad
+            if [ ! -f "$PATH_CONFIG" ] || [ ! -f "$IGNORE_CONFIG" ]; then
+              echo "❌ ERROR: Faltan archivos de configuración ($PATH_CONFIG o $IGNORE_CONFIG). Abortando."
+              exit 1
+            fi
+
+            # Cargamos las rutas a limpiar y a ignorar omitiendo comentarios y líneas vacías
+            mapfile -t TARGETS_TO_CLEAN < <(grep -v '^#' "$PATH_CONFIG" | grep -v '^$')
+            mapfile -t ITEMS_TO_IGNORE < <(grep -v '^#' "$IGNORE_CONFIG" | grep -v '^$')
+
+            for target in "${TARGETS_TO_CLEAN[@]}"; do
+              if [ -e "$target" ]; then
+          
+                # Caso 1: El objetivo es un archivo directo
+                if [ -f "$target" ]; then
+                  if ! grep -qxF "$target" "$IGNORE_CONFIG"; then
+                    echo "🗑️ Eliminando archivo directo: $target"
+                    rm -f "$target"
+                  else
+                    echo "✅ Archivo directo protegido por ignore: $target"
+                  fi
+          
+                # Caso 2: El objetivo es una carpeta
+                elif [ -d "$target" ]; then
+                  echo "Procesando carpeta objetivo: $target"
+          
+                  # Recorremos el árbol de subdirectorios al revés para borrar de forma segura
+                  find "$target" -depth | while read -r item; do
+                    if [ "$item" = "$target" ]; then
+                      continue
+                    fi
+
+                    if [ -e "$item" ]; then
+                      # NUEVO: Comprobar si el item actual coincide exactamente o es subelemento de una ruta ignorada
+                      should_ignore=false
+                      for ignore_path in "${ITEMS_TO_IGNORE[@]}"; do
+                        # Si coincide exactamente o si el item empieza por la ruta de la carpeta ignorada seguida de /
+                        if [ "$item" = "$ignore_path" ] || [[ "$item" == "$ignore_path"/* ]]; then
+                          should_ignore=true
+                          break
+                        fi
+                      done
+
+                      if [ "$should_ignore" = false ]; then
+                        if [ -d "$item" ]; then
+                          # Solo borramos directorios si quedaron vacíos
+                          if [ -z "$(ls -A "$item" 2>/dev/null)" ]; then
+                            echo "🗑️ Eliminando subcarpeta vacía: $item"
+                            rmdir "$item"
+                          fi
+                        else
+                          echo "🗑️ Eliminando archivo no listado: $item"
+                          rm -f "$item"
+                        fi
+                      else
+                        echo "✅ Manteniendo elemento protegido (por archivo o carpeta padre): $item"
+                      fi
+                    fi
+                  done
+
+                  # Si la carpeta principal quedó vacía tras respetar los ignorados, se remueve
+                  if [ -z "$(ls -A "$target" 2>/dev/null)" ]; then
+                    echo "🗑️ Eliminando carpeta objetivo principal por quedar vacía: $target"
+                    rmdir "$target"
+                  fi
+
+                fi
+              fi
+            done
+          }
+
+          # Intenta realizar la fusión. Si falla, ejecutamos el bloque de manejo de conflictos.
+          if ! git merge upstream/master --no-commit --no-ff; then
             echo "⚠️ Conflictos detectados durante el merge. Preparando Pull Request..."
           
-            # 1. Comprobar si ya existe un PR abierto desde la rama 'conflict-sync' hacia 'main'
-            EXISTING_PR=$(gh pr list --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
+            EXISTING_PR=$(gh pr list --head "conflict-sync" --base "master" --state "open" --json number --jq 'length')
           
             if [ "$EXISTING_PR" -gt 0 ]; then
               echo "✅ Ya existe un Pull Request abierto para resolver estos conflictos. No se creará otro."
@@ -64,33 +140,22 @@ jobs:
               exit 0
             fi
 
-            # 2. Si no existe, abortamos el merge limpio y creamos una rama dedicada para el conflicto
             git merge --abort
             git checkout -b conflict-sync
           
-            # Forzamos la fusión guardando los marcadores de conflicto de Git (<<<<<<< HEAD)
-            git merge upstream/main --no-commit --no-ff || true
+            git merge upstream/master --no-commit --no-ff || true
 
-            echo "Eliminando carpetas de idiomas no deseados en src dentro de la rama de conflicto..."
-            for dir in src/*/; do
-              if [ -d "$dir" ]; then
-                folder_name=$(basename "$dir")
-                if [ "$folder_name" != "en" ] && [ "$folder_name" != "all" ] && [ "$folder_name" != "es" ]; then
-                  echo "Borrando: src/$folder_name"
-                  rm -rf "$dir"
-                fi
-              fi
-            done
+            # Ejecutamos la limpieza en la rama de conflicto
+            advanced_clean_processor
 
-            # Subimos la rama con los conflictos marcados y creamos el PR
             git add .
             git commit -m "chore: conflictos detectados al sincronizar con upstream"
             git push origin conflict-sync --force
 
             gh pr create \
               --title "⚠️ Resolver conflictos de sincronización" \
-              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \
-              --base main \
+              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia master." \
+              --base master \
               --head conflict-sync
           
             echo "PR creado exitosamente. Terminando ejecución para intervención manual."
@@ -98,21 +163,12 @@ jobs:
           fi
 
           # --- FLUJO NORMAL (Si el merge no tuvo conflictos) ---
-          echo "Eliminando carpetas de idiomas no deseados en src..."
-          for dir in src/*/; do
-            if [ -d "$dir" ]; then
-              folder_name=$(basename "$dir")
-              if [ "$folder_name" != "en" ] && [ "$folder_name" != "all" ] && [ "$folder_name" != "es" ]; then
-                echo "Borrando: src/$folder_name"
-                rm -rf "$dir"
-              fi
-            fi
-          done
+          advanced_clean_processor
 
           if git diff --quiet && git diff --staged --quiet; then
-            echo "El repositorio ya estaba al día tras filtrar los idiomas. No se requiere commit."
+            echo "El repositorio ya estaba al día tras aplicar la limpieza avanzada. No se requiere commit."
           else
             git add .
-            git commit -m "sync: actualizaciones del padre (solo en, all, es)"
-            git push origin main
+            git commit -m "sync: limpieza profunda usando exclusión avanzada de archivos/carpetas"
+            git push origin master
           fi

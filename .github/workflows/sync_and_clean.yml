@@ -27,7 +27,7 @@ jobs:
 
       - name: Agregar repositorio padre (Upstream)
         run: |
-          git remote add upstream https://github.com/Suwayomi/Suwayomi-WebUI
+          git remote add upstream https://github.com/keiyoushi/extensions-source
           git fetch upstream main
 
       - name: Verificar si hay actualizaciones

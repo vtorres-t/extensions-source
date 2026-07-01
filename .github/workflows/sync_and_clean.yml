@@ -28,13 +28,13 @@ jobs:
       - name: Agregar repositorio padre (Upstream)
         run: |
           git remote add upstream https://github.com/Suwayomi/Suwayomi-WebUI
-          git fetch upstream master
+          git fetch upstream main
 
       - name: Verificar si hay actualizaciones
         id: check_changes
         run: |
           LOCAL=$(git rev-parse HEAD)
-          UPSTREAM=$(git rev-parse upstream/master)
+          UPSTREAM=$(git rev-parse upstream/main)
           if [ "$LOCAL" = "$UPSTREAM" ]; then
             echo "No hay actualizaciones en el repositorio padre. Terminando correctamente."
             echo "has_updates=false" >> $GITHUB_OUTPUT
@@ -48,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pasa el token a la GitHub CLI
         run: |
-          git checkout master
+          git checkout main
           
           # Función de limpieza avanzada combinada
           advanced_clean_processor() {
@@ -129,10 +129,10 @@ jobs:
           }
 
           # Intenta realizar la fusión. Si falla, ejecutamos el bloque de manejo de conflictos.
-          if ! git merge upstream/master --no-commit --no-ff; then
+          if ! git merge upstream/main --no-commit --no-ff; then
             echo "⚠️ Conflictos detectados durante el merge. Preparando Pull Request..."
           
-            EXISTING_PR=$(gh pr list --head "conflict-sync" --base "master" --state "open" --json number --jq 'length')
+            EXISTING_PR=$(gh pr list --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
           
             if [ "$EXISTING_PR" -gt 0 ]; then
               echo "✅ Ya existe un Pull Request abierto para resolver estos conflictos. No se creará otro."
@@ -143,7 +143,7 @@ jobs:
             git merge --abort
             git checkout -b conflict-sync
           
-            git merge upstream/master --no-commit --no-ff || true
+            git merge upstream/main --no-commit --no-ff || true
 
             # Ejecutamos la limpieza en la rama de conflicto
             advanced_clean_processor
@@ -154,8 +154,8 @@ jobs:
 
             gh pr create \
               --title "⚠️ Resolver conflictos de sincronización" \
-              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia master." \
-              --base master \
+              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \
+              --base main \
               --head conflict-sync
           
             echo "PR creado exitosamente. Terminando ejecución para intervención manual."
@@ -170,5 +170,5 @@ jobs:
           else
             git add .
             git commit -m "sync: limpieza profunda usando exclusión avanzada de archivos/carpetas"
-            git push origin master
+            git push origin main
           fi

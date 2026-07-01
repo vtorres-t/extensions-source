@@ -45,8 +45,6 @@ jobs:
 
       - name: Aplicar cambios y limpiar
         if: steps.check_changes.outputs.has_updates == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pasa el token a la GitHub CLI
         run: |
           git checkout -B main origin/main
           
@@ -90,7 +88,7 @@ jobs:
                     fi
 
                     if [ -e "$item" ]; then
-                      # NUEVO: Comprobar si el item actual coincide exactamente o es subelemento de una ruta ignorada
+                      # Comprobar si el item actual coincide exactamente o es subelemento de una ruta ignorada
                       should_ignore=false
                       for ignore_path in "${ITEMS_TO_IGNORE[@]}"; do
                         # Si coincide exactamente o si el item empieza por la ruta de la carpeta ignorada seguida de /
@@ -127,11 +125,19 @@ jobs:
               fi
             done
           }
-
-          # Intenta realizar la fusión. Si falla, ejecutamos el bloque de manejo de conflictos.
-          if ! git merge upstream/main --no-commit --no-ff; then
-            echo "⚠️ Conflictos detectados durante el merge. Preparando Pull Request..."
           
+          echo "Realizando fusión inicial (simulada)..."
+          # Forzamos que intente el merge. Si hay conflictos, no detiene el script gracias al '|| true'
+          git merge upstream/main --no-commit --no-ff || true
+
+          # Ejecutamos la limpieza PRIMERO. Esto borrará archivos conflictivos que no te interesan.
+          advanced_clean_processor
+
+          # Verificamos si QUEDAN marcas de conflicto (<<<<<<<) en los archivos supervivientes
+          if git grep -q '^<<<<<<<' ; then
+            echo "⚠️ Conflictos detectados en los archivos conservados. Preparando Pull Request..."
+          
+            # Comprobar si ya existe un PR abierto
             EXISTING_PR=$(GH_TOKEN="${{ secrets.BUILD_PREVIEW_TOKEN }}" gh pr list --repo "$GITHUB_REPOSITORY" --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
           
             if [ "$EXISTING_PR" -gt 0 ]; then
@@ -140,31 +146,29 @@ jobs:
               exit 0
             fi
 
+            # Deshacemos el merge sucio inicial para crear la rama de conflicto limpia
             git merge --abort
             git checkout -b conflict-sync
           
+            # Volvemos a fusionar en la nueva rama y limpiamos para subir el escenario de conflicto real
             git merge upstream/main --no-commit --no-ff || true
-
-            # Ejecutamos la limpieza en la rama de conflicto
             advanced_clean_processor
 
             git add .
             git commit -m "chore: conflictos detectados al sincronizar con upstream"
             git push origin conflict-sync --force
 
+            # Abrimos el PR
             GH_TOKEN="${{ secrets.BUILD_PREVIEW_TOKEN }}" gh pr create \
               --repo "$GITHUB_REPOSITORY" \
               --title "⚠️ Resolver conflictos de sincronización" \
-              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \
+              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos en los archivos filtrados por tus reglas de configuración. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \
               --base main \
               --head conflict-sync
           
             echo "PR creado exitosamente. Terminando ejecución para intervención manual."
             exit 0
           fi
-
-          # --- FLUJO NORMAL (Si el merge no tuvo conflictos) ---
-          advanced_clean_processor
 
           if git diff --quiet && git diff --staged --quiet; then
             echo "El repositorio ya estaba al día tras aplicar la limpieza avanzada. No se requiere commit."

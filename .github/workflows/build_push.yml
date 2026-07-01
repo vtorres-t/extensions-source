@@ -87,7 +87,7 @@ jobs:
         if: "github.repository == 'vtorres-t/extensions-source'"
         with:
           name: "individual-apks-${{ matrix.chunk.number }}"
-          path: "**/*.apk"
+          path: "**/build/outputs/apk/**/*.apk"
           retention-days: 1
 
   publish:
@@ -140,4 +140,4 @@ jobs:
           cd repo
           pip install protobuf
           python ../main/.github/scripts/merge-repo.py "$DELETE"
-          ../main/.github/scripts/commit-repo.sh
+          bash ../main/.github/scripts/commit-repo.sh

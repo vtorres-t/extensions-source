@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write # Requerido para buscar y crear Pull Requests
 
     steps:
       - name: Check out hijo
@@ -22,7 +23,7 @@ jobs:
       - name: Configurar Git
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@://github.com"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Agregar repositorio padre (Upstream)
         run: |
@@ -44,12 +45,59 @@ jobs:
           fi
 
       - name: Aplicar cambios y limpiar
-        # Solo se ejecuta si el paso anterior confirmó que hay actualizaciones
         if: steps.check_changes.outputs.has_updates == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Pasa el token a la GitHub CLI
         run: |
           git checkout main
-          git merge upstream/main --no-commit --no-ff || true
+          
+          # Intenta realizar la fusión. Si falla (retorna un error), ejecutamos el bloque de manejo de conflictos.
+          if ! git merge upstream/main --no-commit --no-ff; then
+            echo "⚠️ Conflictos detectados durante el merge. Preparando Pull Request..."
+          
+            # 1. Comprobar si ya existe un PR abierto desde la rama 'conflict-sync' hacia 'main'
+            EXISTING_PR=$(gh pr list --head "conflict-sync" --base "main" --state "open" --json number --jq 'length')
+          
+            if [ "$EXISTING_PR" -gt 0 ]; then
+              echo "✅ Ya existe un Pull Request abierto para resolver estos conflictos. No se creará otro."
+              git merge --abort
+              exit 0
+            fi
 
+            # 2. Si no existe, abortamos el merge limpio y creamos una rama dedicada para el conflicto
+            git merge --abort
+            git checkout -b conflict-sync
+          
+            # Forzamos la fusión guardando los marcadores de conflicto de Git (<<<<<<< HEAD)
+            git merge upstream/main --no-commit --no-ff || true
+
+            echo "Eliminando carpetas de idiomas no deseados en src dentro de la rama de conflicto..."
+            for dir in src/*/; do
+              if [ -d "$dir" ]; then
+                folder_name=$(basename "$dir")
+                if [ "$folder_name" != "en" ] && [ "$folder_name" != "all" ] && [ "$folder_name" != "es" ]; then
+                  echo "Borrando: src/$folder_name"
+                  rm -rf "$dir"
+                fi
+              fi
+            done
+
+            # Subimos la rama con los conflictos marcados y creamos el PR
+            git add .
+            git commit -m "chore: conflictos detectados al sincronizar con upstream"
+            git push origin conflict-sync --force
+
+            gh pr create \
+              --title "⚠️ Resolver conflictos de sincronización" \
+              --body "Este PR fue creado automáticamente debido a que se encontraron conflictos al fusionar el repositorio padre. Por favor, resuelve los conflictos manualmente y mergea este PR hacia main." \
+              --base main \
+              --head conflict-sync
+          
+            echo "PR creado exitosamente. Terminando ejecución para intervención manual."
+            exit 0
+          fi
+
+          # --- FLUJO NORMAL (Si el merge no tuvo conflictos) ---
           echo "Eliminando carpetas de idiomas no deseados en src..."
           for dir in src/*/; do
             if [ -d "$dir" ]; then
@@ -61,7 +109,6 @@ jobs:
             fi
           done
 
-          # Verifica si después de borrar las carpetas realmente hay cambios para commitear
           if git diff --quiet && git diff --staged --quiet; then
             echo "El repositorio ya estaba al día tras filtrar los idiomas. No se requiere commit."
           else

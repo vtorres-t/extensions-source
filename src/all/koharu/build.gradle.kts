@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("all", "en", "ja", "zh").forEach {
+    listOf("all", "en").forEach {
         source {
             lang = it
             if (it == "en") id = 1484902275639232927L

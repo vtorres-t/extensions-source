@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("ja", "en", "id").forEach {
+    listOf("en").forEach {
         source {
             lang = it
             baseUrl = "https://holoearth.com"

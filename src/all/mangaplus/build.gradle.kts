@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("en", "es", "fr", "id", "pt-BR", "ru", "th", "vi", "de").forEach {
+    listOf("en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://mangaplus.shueisha.co.jp"

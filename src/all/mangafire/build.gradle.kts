@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("en", "es", "es-419", "fr", "ja", "pt", "pt-BR").forEach {
+    listOf("en", "es", "es-419").forEach {
         source {
             lang = it
             baseUrl = "https://mangafire.to"

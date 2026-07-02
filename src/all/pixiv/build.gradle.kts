@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("en", "ja", "zh", "zh-tw", "ko").forEach {
+    listOf("en").forEach {
         source {
             lang = it
             baseUrl = "https://www.pixiv.net"

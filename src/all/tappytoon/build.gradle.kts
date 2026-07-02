@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("en", "fr", "de").forEach {
+    listOf("en").forEach {
         source {
             lang = it
             baseUrl = "https://www.tappytoon.com/$it"

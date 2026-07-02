@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("de", "en", "es", "fr", "it", "pt-BR").forEach {
+    listOf("en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://honeytoon.com"

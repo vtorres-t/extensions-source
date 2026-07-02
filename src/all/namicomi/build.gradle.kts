@@ -9,11 +9,8 @@ keiyoushi {
     libVersion = "1.4"
 
     listOf(
-        "en", "ar", "bg", "ca", "zh-Hans", "zh-Hant", "hr", "cs", "da", "nl",
-        "et", "fil", "fi", "fr", "de", "el", "he", "hi", "hu", "is",
-        "ga", "id", "it", "ja", "ko", "lt", "ms", "ne", "no", "pa",
-        "fa", "pl", "pt-BR", "pt", "ru", "sk", "sl", "es-419", "es", "sv",
-        "th", "tr", "uk",
+        "en",
+        "es-419", "es",
     ).forEach {
         source {
             lang = it

@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("en", "fr").forEach {
+    listOf("en").forEach {
         source {
             lang = it
             baseUrl = "https://www.commitstrip.com"

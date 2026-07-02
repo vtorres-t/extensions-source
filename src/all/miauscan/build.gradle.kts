@@ -9,7 +9,7 @@ keiyoushi {
     libVersion = "1.4"
     theme = "mangathemesia"
 
-    listOf("es", "pt-BR").forEach { sourceLang ->
+    listOf("es").forEach { sourceLang ->
         source {
             lang = sourceLang
             baseUrl = "https://leemiau.com"

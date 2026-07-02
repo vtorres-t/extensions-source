@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("ar", "en").forEach {
+    listOf("en").forEach {
         source {
             lang = it
             baseUrl = "https://www.ysk-comics.com"

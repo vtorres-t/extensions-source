@@ -8,11 +8,11 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("de", "en").forEach { langCode ->
+    listOf("en").forEach { langCode ->
         source {
             lang = langCode
             baseUrl = "https://www.sandraandwoo.com"
-            if (langCode == "de") name = "Sandra und Woo"
+            if (langCode == ) name = "Sandra und Woo"
         }
     }
 }

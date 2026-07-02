@@ -9,7 +9,7 @@ keiyoushi {
     libVersion = "1.4"
     theme = "galleryadults"
 
-    listOf("en", "ja", "es", "fr", "ko", "de", "ru", "all").forEach { language ->
+    listOf("en", "es", "all").forEach { language ->
         source {
             lang = language
             baseUrl = "https://hentaiera.com"

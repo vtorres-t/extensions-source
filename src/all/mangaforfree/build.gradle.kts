@@ -9,7 +9,7 @@ keiyoushi {
     libVersion = "1.4"
     theme = "madara"
 
-    listOf("en", "ko", "all").forEach {
+    listOf("en", "all").forEach {
         source {
             lang = it
             baseUrl = "https://mangaforfree.net"

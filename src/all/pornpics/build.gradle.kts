@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("en", "zh").forEach { langCode ->
+    listOf("en").forEach { langCode ->
         source {
             lang = langCode
             baseUrl = "https://www.pornpics.com"

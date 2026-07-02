@@ -10,7 +10,7 @@ keiyoushi {
 
     val comicFuryUrl = "https://comicfury.com"
 
-    listOf("all", "en", "es", "pt-BR", "de", "fr", "it", "pl", "ja", "zh", "ru", "fi", "other").forEach {
+    listOf("all", "en", "es", "other").forEach {
         source {
             lang = it
             baseUrl = comicFuryUrl

@@ -9,7 +9,7 @@ keiyoushi {
     libVersion = "1.4"
     theme = "madara"
 
-    listOf("ar", "en", "es", "fr", "id", "it", "pt-BR").forEach {
+    listOf("en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://manhuarmtl.com"

@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("en", "es", "id", "pt-BR").forEach {
+    listOf("en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://comikey.com"

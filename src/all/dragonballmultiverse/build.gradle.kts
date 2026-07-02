@@ -11,10 +11,8 @@ keiyoushi {
     val dbmUrl = "https://www.dragonball-multiverse.com"
 
     listOf(
-        "en", "fr", "ja", "zh", "es", "it", "pt", "de", "pl", "nl",
-        "tr", "pt-BR", "hu", "ga", "ca", "no", "ru", "ro", "eu", "lt",
-        "hr", "ko", "fi", "he", "bg", "sv", "el", "es-419", "ar", "fil",
-        "la", "da", "co", "br", "vec", "lmo",
+        "en", "es",
+        "es-419",
     ).forEach {
         source {
             lang = it

@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("en", "ja", "zh", "ko", "es", "ru", "fr", "de", "it", "pl").forEach {
+    listOf("en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://www.simply-hentai.com"

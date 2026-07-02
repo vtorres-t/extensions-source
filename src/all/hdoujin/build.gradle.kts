@@ -8,11 +8,10 @@ keiyoushi {
     contentWarning = ContentWarning.NSFW
     libVersion = "1.4"
 
-    listOf("all", "en", "es", "ja", "ko", "zh").forEach {
+    listOf("all", "en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://hdoujin.org"
-            if (it == "ko") id = 8377507648400729012L
         }
     }
 }

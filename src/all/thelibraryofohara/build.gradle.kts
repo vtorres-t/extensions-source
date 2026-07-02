@@ -8,7 +8,7 @@ keiyoushi {
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
-    listOf("id", "en", "es", "it", "ar", "fr").forEach {
+    listOf("en", "es").forEach {
         source {
             lang = it
             baseUrl = "https://thelibraryofohara.com"

@@ -9,7 +9,7 @@ keiyoushi {
     libVersion = "1.4"
     theme = "guya"
 
-    listOf("en", "es", "pl").forEach { language ->
+    listOf("en", "es").forEach { language ->
         source {
             lang = language
             baseUrl = "https://mahoushoujobu.com"

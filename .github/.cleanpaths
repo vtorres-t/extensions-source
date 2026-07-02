@@ -1,2 +1,20 @@
 # Indica carpetas o archivos directos que quieres que el script procese para borrar
-src
+src/ar
+src/bg
+src/ca
+src/cs
+src/de
+src/de
+src/fr
+src/id
+src/it
+src/ja
+src/ko
+src/pl
+src/pt
+src/ru
+src/th
+src/tr
+src/uk
+src/vi
+src/zh

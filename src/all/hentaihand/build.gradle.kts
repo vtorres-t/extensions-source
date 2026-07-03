@@ -10,8 +10,10 @@ keiyoushi {
     theme = "hentaihand"
 
     val languages = listOf(
-        "all", "en", "other",
-        "es", 
+        "all",
+        "en",
+        "other",
+        "es",
     )
 
     languages.forEach { language ->

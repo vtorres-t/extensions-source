@@ -9,7 +9,8 @@ keiyoushi {
     libVersion = "1.4"
 
     listOf(
-        "en", "es",
+        "en",
+        "es",
     ).forEach { langCode ->
         source {
             lang = langCode

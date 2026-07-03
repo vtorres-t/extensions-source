@@ -9,13 +9,13 @@ keiyoushi {
     libVersion = "1.4"
 
     listOf(
-        "all", "en", "es",
+        "all",
+        "en",
+        "es",
     ).forEach {
         source {
             lang = it
             baseUrl = "https://3hentai.net"
-            // lang changed from po to pl, id kept from before the rename
-            if (it == "pl") id = 7940950215101782907L
         }
     }
 }

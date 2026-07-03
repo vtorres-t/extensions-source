@@ -10,7 +10,8 @@ keiyoushi {
 
     listOf(
         "en",
-        "es-419", "es",
+        "es-419",
+        "es",
     ).forEach {
         source {
             lang = it

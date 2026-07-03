@@ -11,7 +11,8 @@ keiyoushi {
     val dbmUrl = "https://www.dragonball-multiverse.com"
 
     listOf(
-        "en", "es",
+        "en",
+        "es",
         "es-419",
     ).forEach {
         source {

@@ -12,7 +12,6 @@ keiyoushi {
         source {
             lang = langCode
             baseUrl = "https://www.sandraandwoo.com"
-            if (langCode == ) name = "Sandra und Woo"
         }
     }
 }

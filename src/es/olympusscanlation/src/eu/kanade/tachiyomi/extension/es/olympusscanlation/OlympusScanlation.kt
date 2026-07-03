@@ -273,6 +273,6 @@ abstract class OlympusScanlation :
 
         private const val SLUG_MAP = "slugMap"
 
-        private const val CACHE_DURATION_MS = 60 * 60 * 1000L // 1 hour
+        private const val CACHE_DURATION_MS = 3 * 60 * 60 * 1000L // 3 hour
     }
 }

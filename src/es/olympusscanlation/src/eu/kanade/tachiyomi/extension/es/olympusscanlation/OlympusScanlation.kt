@@ -215,8 +215,10 @@ abstract class OlympusScanlation :
         while (data.meta.total > resultSize) {
             val newRequest = paginatedChapterListRequest(slug, mangaId, page)
             val newResponse = client.newCall(newRequest).execute()
+            if (!newResponse.isSuccessful) break
+
             val newData = newResponse.parseAs<PayloadChapterDto>()
-            data.data += newData.data
+            data.data.addAll(newData.data)
             resultSize += newData.data.size
             page += 1
         }

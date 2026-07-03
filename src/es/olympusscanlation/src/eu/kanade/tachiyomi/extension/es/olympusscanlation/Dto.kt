@@ -103,7 +103,7 @@ class MangaDetailDto(
 @Serializable
 class PayloadChapterDto(
     var data: ArrayList<ChapterDto>,
-    val meta: MetaDto
+    val meta: MetaDto,
 )
 
 @Serializable

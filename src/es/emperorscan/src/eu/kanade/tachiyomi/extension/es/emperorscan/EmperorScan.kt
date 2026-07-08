@@ -15,6 +15,7 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
+import org.jsoup.Jsoup
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -45,6 +46,13 @@ abstract class EmperorScan :
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListParse(response: Response): List<SChapter> {
+        val responseBody = response.peekBody(Long.MAX_VALUE).string()
+        val document = Jsoup.parse(responseBody, response.request.url.toString())
+
+        val vipUrls = document.select("li.wp-manga-chapter:has(.required-login) a")
+            .map { it.attr("href").trim() }
+            .toSet()
+
         val chapters = super.chapterListParse(response)
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
@@ -52,7 +60,11 @@ abstract class EmperorScan :
             .let { list ->
                 if (removePremium) {
                     list.filterNot { chapter ->
-                        chapter.name.contains("Vip", ignoreCase = true) ||
+                        // Comprobamos la URL absoluta del capítulo contra nuestra lista negra detectada en el HTML
+                        val absoluteUrl = if (chapter.url.startsWith("http")) chapter.url else "$baseUrl${chapter.url}"
+
+                        vipUrls.contains(absoluteUrl.trim()) ||
+                            chapter.name.contains("Vip", ignoreCase = true) ||
                             chapter.name.contains("Soberano", ignoreCase = true)
                     }
                 } else {

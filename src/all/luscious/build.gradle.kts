@@ -11,8 +11,17 @@ keiyoushi {
     listOf("en", "es", "other", "all").forEach {
         source {
             lang = it
+<<<<<<< HEAD
             baseUrl("https://www.luscious.net") {
                 mirrors = listOf("https://members.luscious.net")
+=======
+            if (it == "pt-BR") id = 5826725746643311801L
+            baseUrl {
+                mirrors(
+                    "https://www.luscious.net",
+                    "https://members.luscious.net",
+                )
+>>>>>>> upstream/main
             }
         }
     }

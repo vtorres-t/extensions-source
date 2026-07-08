@@ -282,8 +282,9 @@ abstract class MangaPlus :
             val error = result.error!!.langPopup(langCode)
 
             when {
-                error?.subject == NOT_FOUND_SUBJECT -> intl["title_removed"]
-                !error?.body.isNullOrEmpty() -> error!!.body
+                error == null -> intl["unknown_error"]
+                error.subject == NOT_FOUND_SUBJECT -> intl["title_removed"]
+                error.body.isNotEmpty() -> error.body
                 else -> intl["unknown_error"]
             }
         }
@@ -304,8 +305,9 @@ abstract class MangaPlus :
             val error = result.error!!.langPopup(langCode)
 
             when {
-                error?.subject == NOT_FOUND_SUBJECT -> intl["title_removed"]
-                !error?.body.isNullOrEmpty() -> error!!.body
+                error == null -> intl["unknown_error"]
+                error.subject == NOT_FOUND_SUBJECT -> intl["title_removed"]
+                error.body.isNotEmpty() -> error.body
                 else -> intl["unknown_error"]
             }
         }
@@ -346,8 +348,9 @@ abstract class MangaPlus :
             val error = result.error!!.langPopup(langCode)
 
             when {
-                error?.subject == NOT_FOUND_SUBJECT -> intl["chapter_expired"]
-                !error?.body.isNullOrEmpty() -> error!!.body
+                error == null -> intl["unknown_error"]
+                error.subject == NOT_FOUND_SUBJECT -> intl["chapter_expired"]
+                error.body.isNotEmpty() -> error.body
                 else -> intl["unknown_error"]
             }
         }

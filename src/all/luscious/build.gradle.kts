@@ -11,8 +11,11 @@ keiyoushi {
     listOf("en", "es", "other", "all").forEach {
         source {
             lang = it
-            baseUrl("https://www.luscious.net") {
-                mirrors = listOf("https://members.luscious.net")
+            baseUrl {
+                mirrors(
+                    "https://www.luscious.net",
+                    "https://members.luscious.net",
+                )
             }
         }
     }

@@ -141,9 +141,9 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/keiyoushi/extensions@repo/index.min.json
-            curl https://purge.jsdelivr.net/gh/keiyoushi/extensions@repo/index.json
-            curl https://purge.jsdelivr.net/gh/keiyoushi/extensions@repo/index.pb
+            curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.min.json
+            curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.json
+            curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.pb
           else
             echo "No changes to commit"
           fi

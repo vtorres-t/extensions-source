@@ -15,6 +15,7 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
+import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -42,6 +43,10 @@ abstract class EmperorScan :
 
     override val mangaDetailsSelectorStatus = "div.sir:has(span.l:contains(Estado)) span.v"
 
+    override fun chapterDateSelector() = "span.cmeta"
+
+    override val chapterUrlSelector = "span.ctitle"
+
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListSelector(): String {
@@ -51,6 +56,20 @@ abstract class EmperorScan :
         } else {
             "div.clist.list a.crow"
         }
+    }
+
+    override fun chapterFromElement(element: Element): SChapter {
+        val chapter = SChapter.create()
+
+        chapter.url = element.attr("abs:href").let {
+            it.substringBefore("?style=paged") + if (!it.endsWith(chapterUrlSuffix)) chapterUrlSuffix else ""
+        }
+
+        chapter.name = element.selectFirst(chapterUrlSelector)?.text() ?: ""
+
+        chapter.date_upload = parseChapterDate(element.selectFirst(chapterDateSelector())?.text())
+
+        return chapter
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {

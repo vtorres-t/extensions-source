@@ -38,18 +38,18 @@ abstract class EmperorScan :
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
 
-    override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item:has(h5:contains(Sinopsis)) div"
+    override val mangaDetailsSelectorDescription = "div#syn"
 
-    override val mangaDetailsSelectorStatus = "div.post-content_item:has(h5:contains(Estado)) div.summary-content"
+    override val mangaDetailsSelectorStatus = "div.sir:has(span.l:contains(Estado)) span.v"
 
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListSelector(): String {
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
         return if (removePremium) {
-            "li.wp-manga-chapter:not(:has(.required-login))"
+            "div.clist.list a.crow:not(.is-locked)"
         } else {
-            "li.wp-manga-chapter"
+            "div.clist.list a.crow"
         }
     }
 

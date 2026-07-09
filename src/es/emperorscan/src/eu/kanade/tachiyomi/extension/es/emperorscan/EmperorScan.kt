@@ -47,6 +47,28 @@ abstract class EmperorScan :
 
     override val chapterUrlSelector = "span.ctitle"
 
+    override fun popularMangaSelector() = "div.agrid a.acard"
+    override fun latestUpdatesSelector() = "div.agrid a.acard"
+    override val popularMangaUrlSelector = "div.ac-t"
+    override val popularMangaUrlSelectorImg = "img.ac-cover"
+
+    override fun popularMangaFromElement(element: Element): SManga {
+        val manga = SManga.create()
+
+        manga.setUrlWithoutDomain(element.attr("abs:href"))
+
+        manga.title = element.selectFirst("div.ac-t")?.text()?.trim() ?: ""
+
+        element.selectFirst(popularMangaUrlSelectorImg)?.let {
+            manga.thumbnail_url = processThumbnail(imageFromElement(it), true)
+        }
+
+        return manga
+    }
+
+    override fun searchMangaSelector() = "div.agrid a.acard"
+    override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
+
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListSelector(): String {

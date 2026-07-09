@@ -49,8 +49,6 @@ abstract class EmperorScan :
 
     override fun popularMangaSelector() = "div.agrid a.acard"
     override fun latestUpdatesSelector() = "div.agrid a.acard"
-    override val popularMangaUrlSelector = "div.ac-t"
-    override val popularMangaUrlSelectorImg = "img.ac-cover"
 
     override fun popularMangaFromElement(element: Element): SManga {
         val manga = SManga.create()
@@ -59,7 +57,7 @@ abstract class EmperorScan :
 
         manga.title = element.selectFirst("div.ac-t")?.text()?.trim() ?: ""
 
-        element.selectFirst(popularMangaUrlSelectorImg)?.let {
+        element.selectFirst("img.ac-cover")?.let {
             manga.thumbnail_url = processThumbnail(imageFromElement(it), true)
         }
 

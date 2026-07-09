@@ -15,6 +15,7 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -39,14 +40,45 @@ abstract class EmperorScan :
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
 
-    override val mangaDetailsSelectorDescription = "div#syn"
+    // ==================== SELECTORES DE LA FICHA TÉCNICA ====================
+    override val mangaDetailsSelectorDescription = "div#syn, div.sinopsis, div.description-content"
+    override val mangaDetailsSelectorStatus = "div.sir:has(span.l:contains(Estado)) span.v, div.manga-status"
+    override val mangaDetailsSelectorTitle = "div.post-title h1, h1.titulo-manga, .post-title > h3"
 
-    override val mangaDetailsSelectorStatus = "div.sir:has(span.l:contains(Estado)) span.v"
+    override fun mangaDetailsParse(document: Document): SManga {
+        val manga = super.mangaDetailsParse(document)
 
+        if (manga.title.isBlank()) {
+            manga.title = document.selectFirst(mangaDetailsSelectorTitle)?.text()?.trim() ?: ""
+        }
+
+        if (manga.description.isNullOrBlank()) {
+            val descriptionElement = document.selectFirst(mangaDetailsSelectorDescription)
+            manga.description = descriptionElement?.text()?.trim() ?: "Sin descripción disponible."
+        }
+
+        val statusText = document.select(mangaDetailsSelectorStatus).text().lowercase()
+        if (statusText.isNotBlank()) {
+            manga.status = when {
+                statusText.contains("en curso") || statusText.contains("ongoing") -> SManga.ONGOING
+                statusText.contains("completado") || statusText.contains("completed") || statusText.contains("finalizado") -> SManga.COMPLETED
+                else -> SManga.UNKNOWN
+            }
+        }
+
+        val imageElement = document.selectFirst("div.summary_image img, img.ac-cover, img.manga-main-cover")
+        if (imageElement != null && manga.thumbnail_url.isNullOrBlank()) {
+            manga.thumbnail_url = processThumbnail(imageFromElement(imageElement), true)
+        }
+
+        return manga
+    }
+
+    // ==================== SELECTORES DE CAPÍTULOS ====================
     override fun chapterDateSelector() = "span.cmeta"
-
     override val chapterUrlSelector = "span.ctitle"
 
+    // ==================== SELECTORES DEL CATÁLOGO ====================
     override fun popularMangaSelector() = "div.agrid a.acard"
     override fun latestUpdatesSelector() = "div.agrid a.acard"
 
@@ -54,7 +86,6 @@ abstract class EmperorScan :
         val manga = SManga.create()
 
         manga.setUrlWithoutDomain(element.attr("abs:href"))
-
         manga.title = element.selectFirst("div.ac-t")?.text()?.trim() ?: ""
 
         element.selectFirst("img.ac-cover")?.let {
@@ -67,6 +98,7 @@ abstract class EmperorScan :
     override fun searchMangaSelector() = "div.agrid a.acard"
     override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
 
+    // ==================== PREFERENCIAS Y FILTROS VIP ====================
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListSelector(): String {
@@ -86,7 +118,6 @@ abstract class EmperorScan :
         }
 
         chapter.name = element.selectFirst(chapterUrlSelector)?.text() ?: ""
-
         chapter.date_upload = parseChapterDate(element.selectFirst(chapterDateSelector())?.text())
 
         return chapter

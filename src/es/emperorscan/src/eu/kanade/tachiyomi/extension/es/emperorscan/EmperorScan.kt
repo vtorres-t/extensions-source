@@ -131,7 +131,7 @@ abstract class EmperorScan :
 
     private val preferences: SharedPreferences = getPreferences()
 
-    override fun chapterListSelector() = "div.clist a.crow, li.wp-manga-chapter"
+    override fun chapterListSelector() = "div.clist a.crow, li.wp-manga-chapter, .crow"
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = response.asJsoup()

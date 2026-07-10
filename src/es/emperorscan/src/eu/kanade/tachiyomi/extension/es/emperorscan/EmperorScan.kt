@@ -31,7 +31,7 @@ abstract class EmperorScan :
 
     override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))
 
-    override val useLoadMoreRequest = LoadMoreStrategy.Never
+    override val useLoadMoreRequest = LoadMoreStrategy.Always
     override val useNewChapterEndpoint = true
 
     private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
@@ -130,7 +130,7 @@ abstract class EmperorScan :
 
     private val preferences: SharedPreferences = getPreferences()
 
-    override fun chapterListSelector() = "div.clist a.crow"
+    override fun chapterListSelector() = "div.clist a.crow, li.wp-manga-chapter"
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val document = response.asJsoup()
@@ -140,10 +140,10 @@ abstract class EmperorScan :
             SChapter.create().apply {
                 setUrlWithoutDomain(element.attr("href"))
 
-                val titleElement = element.selectFirst("span.ctitle")
+                val titleElement = element.selectFirst("span.ctitle") ?: element.selectFirst("a")
                 name = titleElement?.text() ?: "Capítulo"
 
-                val dateElement = element.selectFirst("span.cmeta")
+                val dateElement = element.selectFirst("span.cmeta") ?: element.selectFirst("span.chapter-release-date")
                 date_upload = dateElement?.text()?.let { parseChapterDate(it) } ?: 0L
             }
         }

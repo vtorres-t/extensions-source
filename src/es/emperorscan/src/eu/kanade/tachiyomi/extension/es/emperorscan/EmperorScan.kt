@@ -6,6 +6,7 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.GET
+import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SChapter
@@ -16,6 +17,7 @@ import keiyoushi.lib.randomua.addRandomUAPreference
 import keiyoushi.lib.randomua.setRandomUserAgent
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
+import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -32,8 +34,8 @@ abstract class EmperorScan :
 
     override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))
 
-    override val useLoadMoreRequest = LoadMoreStrategy.Always
-    override val useNewChapterEndpoint = true
+    override val useLoadMoreRequest = LoadMoreStrategy.Never
+    override val useNewChapterEndpoint = false
 
     private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
@@ -134,8 +136,31 @@ abstract class EmperorScan :
     override fun chapterListSelector() = "div.clist a.crow, li.wp-manga-chapter, .crow"
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val document = response.asJsoup()
+        var document = response.asJsoup()
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
+
+        if (document.select("div.clist a.crow").isEmpty()) {
+            val postId = document.select("input.rating-post-id, input#wp-manga-action-button").attr("value")
+                .takeIf { it.isNotEmpty() }
+                ?: document.select("div.add-bookmark a[data-post], div.hact a[data-post]").attr("data-post")
+
+            if (!postId.isNullOrBlank()) {
+                val formBody = FormBody.Builder()
+                    .add("action", "manga_get_chapters")
+                    .add("manga", postId)
+                    .build()
+
+                val ajaxHeaders = headersBuilder()
+                    .add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+                    .add("X-Requested-With", "XMLHttpRequest")
+                    .build()
+
+                val ajaxResponse = client.newCall(POST("$baseUrl/wp-admin/admin-ajax.php", ajaxHeaders, formBody)).execute()
+                if (ajaxResponse.isSuccessful) {
+                    document = ajaxResponse.asJsoup()
+                }
+            }
+        }
 
         val chapters = document.select(chapterListSelector()).map { element ->
             SChapter.create().apply {

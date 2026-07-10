@@ -15,8 +15,6 @@ import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -40,88 +38,19 @@ abstract class EmperorScan :
 
     override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
 
-    // ==================== SELECTORES DE LA FICHA TÉCNICA ====================
-    override val mangaDetailsSelectorDescription = "div#syn, div.sinopsis, div.description-content"
-    override val mangaDetailsSelectorStatus = "div.sir:has(span.l:contains(Estado)) span.v, div.manga-status"
-    override val mangaDetailsSelectorTitle = "div.post-title h1, h1.titulo-manga, .post-title > h3"
-    override val mangaDetailsSelectorGenre = "div.hchips--genres a.chip, div.genres-content a"
+    override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item:has(h5:contains(Sinopsis)) div"
 
-    override fun mangaDetailsParse(document: Document): SManga {
-        val manga = super.mangaDetailsParse(document)
+    override val mangaDetailsSelectorStatus = "div.post-content_item:has(h5:contains(Estado)) div.summary-content"
 
-        if (manga.title.isBlank()) {
-            manga.title = document.selectFirst(mangaDetailsSelectorTitle)?.text()?.trim() ?: ""
-        }
-
-        if (manga.description.isNullOrBlank()) {
-            val descriptionElement = document.selectFirst(mangaDetailsSelectorDescription)
-            manga.description = descriptionElement?.text()?.trim() ?: "Sin descripción disponible."
-        }
-
-        val statusText = document.select(mangaDetailsSelectorStatus).text().lowercase()
-        if (statusText.isNotBlank()) {
-            manga.status = when {
-                statusText.contains("en curso") || statusText.contains("ongoing") -> SManga.ONGOING
-                statusText.contains("completado") || statusText.contains("completed") || statusText.contains("finalizado") -> SManga.COMPLETED
-                else -> SManga.UNKNOWN
-            }
-        }
-
-        val imageElement = document.selectFirst("div.summary_image img, img.ac-cover, img.manga-main-cover")
-        if (imageElement != null && manga.thumbnail_url.isNullOrBlank()) {
-            manga.thumbnail_url = processThumbnail(imageFromElement(imageElement), true)
-        }
-
-        return manga
-    }
-
-    // ==================== SELECTORES DE CAPÍTULOS ====================
-    override fun chapterDateSelector() = "span.cmeta"
-    override val chapterUrlSelector = "span.ctitle"
-
-    // ==================== SELECTORES DEL CATÁLOGO ====================
-    override fun popularMangaSelector() = "div.agrid a.acard"
-    override fun latestUpdatesSelector() = "div.agrid a.acard"
-
-    override fun popularMangaFromElement(element: Element): SManga {
-        val manga = SManga.create()
-
-        manga.setUrlWithoutDomain(element.attr("abs:href"))
-        manga.title = element.selectFirst("div.ac-t")?.text()?.trim() ?: ""
-
-        element.selectFirst("img.ac-cover")?.let {
-            manga.thumbnail_url = processThumbnail(imageFromElement(it), true)
-        }
-
-        return manga
-    }
-
-    override fun searchMangaSelector() = "div.agrid a.acard"
-    override fun searchMangaFromElement(element: Element): SManga = popularMangaFromElement(element)
-
-    // ==================== PREFERENCIAS Y FILTROS VIP ====================
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListSelector(): String {
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
         return if (removePremium) {
-            "div.clist.list a.crow:not(.is-locked)"
+            "li.wp-manga-chapter:not(:has(.required-login))"
         } else {
-            "div.clist.list a.crow"
+            "li.wp-manga-chapter"
         }
-    }
-
-    override fun chapterFromElement(element: Element): SChapter {
-        val chapter = SChapter.create()
-
-        chapter.url = element.attr("abs:href").let {
-            it.substringBefore("?style=paged") + if (!it.endsWith(chapterUrlSuffix)) chapterUrlSuffix else ""
-        }
-
-        chapter.name = element.selectFirst(chapterUrlSelector)?.text() ?: ""
-        chapter.date_upload = parseChapterDate(element.selectFirst(chapterDateSelector())?.text())
-
-        return chapter
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {

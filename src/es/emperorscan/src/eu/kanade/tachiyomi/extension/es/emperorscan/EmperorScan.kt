@@ -17,6 +17,7 @@ import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -91,9 +92,32 @@ class EmperorScan : Madara("ImperioManhua", "https://imperiomanhua.com", "es"), 
     override fun searchMangaFromElement(element: Element) = popularMangaFromElement(element)
     override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
 
-    // Selectores para extraer los detalles dentro de la ficha del manga
-    override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item div:has(p), div.description-p, div.manga-about, .summary_content div.post-content"
-    override val mangaDetailsSelectorStatus = "div.post-content_item:contains(Estado) div.summary-content, div.post-status div.summary-content"
+    // ================================================================================
+    // SELECTORES NUEVOS PARA LA VISTA DETALLADA (HERO LAYOUT DE LA WEB)
+    // ================================================================================
+
+    override val mangaDetailsSelectorTitle = "h1.htitle"
+    override val mangaDetailsSelectorDescription = "div.syn, div.syn p, div.description-p, div.summary_content div.post-content_item div:has(p)"
+    override val mangaDetailsSelectorStatus = "span.htag--status, div.sir:has(.l:contains(Estado)) span.v, div.post-content_item:contains(Estado) div.summary-content"
+
+    override fun mangaDetailsParse(document: Document): SManga {
+        val manga = super.mangaDetailsParse(document)
+
+        // Extracción robusta de géneros en la nueva disposición de elementos en ImperioManhua
+        val genres = mutableListOf<String>()
+        document.select("div.hchips--genres a.chip, div.genres-content a").forEach { element ->
+            val genre = element.text()
+            if (genre.isNotBlank()) {
+                genres.add(genre)
+            }
+        }
+
+        if (genres.isNotEmpty()) {
+            manga.genre = genres.joinToString(", ")
+        }
+
+        return manga
+    }
 
     // ================================================================================
     // FILTRADO DE CAPÍTULOS PREMIUM
@@ -126,36 +150,6 @@ class EmperorScan : Madara("ImperioManhua", "https://imperiomanhua.com", "es"), 
 
         return filteredChapters.distinctBy { it.name.trim() }
     }
-
-    // ================================================================================
-    // SELECTORES NUEVOS PARA LA VISTA DETALLADA (HERO LAYOUT)
-    // ================================================================================
-
-    // Selectores directos para agilizar el mapeo nativo de Madara
-    override val mangaDetailsSelectorTitle = "h1.htitle"
-    override val mangaDetailsSelectorDescription = "div.syn, div.syn p, div.description-p"
-    override val mangaDetailsSelectorStatus = "span.htid, span.htag--status, div.sir:has(.l:contains(Estado)) span.v"
-
-    // Sobreescritura del parseo de detalles para capturar de forma precisa los géneros y autores del nuevo tema
-    override fun mangaDetailsParse(document: Document): SManga {
-        val manga = super.mangaDetailsParse(document)
-
-        // Extracción robusta de géneros en la nueva disposición de elementos
-        val genres = mutableListOf<String>()
-        document.select("div.hchips--genres a.chip, div.genres-content a").forEach { element ->
-            val genre = element.text()
-            if (genre.isNotBlank()) {
-                genres.add(genre)
-            }
-        }
-
-        if (genres.isNotEmpty()) {
-            manga.genre = genres.joinToString(", ")
-        }
-
-        return manga
-    }
-
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()

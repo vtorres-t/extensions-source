@@ -144,7 +144,13 @@ abstract class EmperorScan :
                 name = titleElement?.text() ?: "Capítulo"
 
                 val dateElement = element.selectFirst("span.cmeta") ?: element.selectFirst("span.chapter-release-date")
-                date_upload = dateElement?.text()?.let { parseChapterDate(it) } ?: 0L
+                val dateText = dateElement?.text()?.trim() ?: ""
+
+                date_upload = if (dateText.isNotBlank()) {
+                    parseCustomRelativeDate(dateText) ?: parseChapterDate(dateText)
+                } else {
+                    0L
+                }
             }
         }
 
@@ -160,6 +166,36 @@ abstract class EmperorScan :
         }
 
         return filteredChapters.distinctBy { it.name.trim() }
+    }
+
+    private fun parseCustomRelativeDate(dateString: String): Long? {
+        val trimmed = dateString.lowercase()
+        val calendar = Calendar.getInstance()
+
+        return try {
+            val number = trimmed.substringBefore(" ").toInt()
+            when {
+                "minuto" in trimmed || "minutos" in trimmed -> {
+                    calendar.add(Calendar.MINUTE, -number)
+                    calendar.timeInMillis
+                }
+                "hora" in trimmed || "horas" in trimmed -> {
+                    calendar.add(Calendar.HOUR_OF_DAY, -number)
+                    calendar.timeInMillis
+                }
+                "día" in trimmed || "días" in trimmed || "dia" in trimmed -> {
+                    calendar.add(Calendar.DAY_OF_YEAR, -number)
+                    calendar.timeInMillis
+                }
+                "semana" in trimmed || "semanas" in trimmed -> {
+                    calendar.add(Calendar.WEEK_OF_YEAR, -number)
+                    calendar.timeInMillis
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {

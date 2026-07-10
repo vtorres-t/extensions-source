@@ -23,8 +23,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-class EmperorScan :
-    Madara("ImperioManhua", "https://imperiomanhua.com", "es"),
+abstract class EmperorScan :
+    Madara(),
     ConfigurableSource {
 
     override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))

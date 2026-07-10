@@ -6,7 +6,6 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SChapter
@@ -17,7 +16,7 @@ import keiyoushi.lib.randomua.addRandomUAPreference
 import keiyoushi.lib.randomua.setRandomUserAgent
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
-import okhttp3.FormBody
+import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import okhttp3.Response
@@ -35,7 +34,7 @@ abstract class EmperorScan :
     override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))
 
     override val useLoadMoreRequest = LoadMoreStrategy.Never
-    override val useNewChapterEndpoint = false
+    override val useNewChapterEndpoint = true
 
     private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
@@ -100,6 +99,8 @@ abstract class EmperorScan :
     override val mangaDetailsSelectorTitle = "h1.htitle"
     override val mangaDetailsSelectorDescription = "div.syn, div.syn p, div.description-p, div.summary_content div.post-content_item div:has(p)"
     override val mangaDetailsSelectorStatus = "span.htag--status, div.sir:has(.l:contains(Estado)) span.v, div.post-content_item:contains(Estado) div.summary-content"
+    override val mangaDetailsSelectorThumbnail = "div.hposter__card > img"
+    override val mangaDetailsSelectorGenre = "div.hcol > .hchips--genres > a.chip"
 
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = super.mangaDetailsParse(document)
@@ -136,62 +137,15 @@ abstract class EmperorScan :
     override fun chapterListSelector() = "div.clist a.crow, li.wp-manga-chapter, .crow"
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        var document = response.asJsoup()
-        val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
-
-        if (document.select("div.clist a.crow").isEmpty()) {
-            val postId = document.select("input.rating-post-id, input#wp-manga-action-button").attr("value")
-                .takeIf { it.isNotEmpty() }
-                ?: document.select("div.add-bookmark a[data-post], div.hact a[data-post]").attr("data-post")
-
-            if (!postId.isNullOrBlank()) {
-                val formBody = FormBody.Builder()
-                    .add("action", "manga_get_chapters")
-                    .add("manga", postId)
-                    .build()
-
-                val ajaxHeaders = headersBuilder()
-                    .add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                    .add("X-Requested-With", "XMLHttpRequest")
-                    .build()
-
-                val ajaxResponse = client.newCall(POST("$baseUrl/wp-admin/admin-ajax.php", ajaxHeaders, formBody)).execute()
-                if (ajaxResponse.isSuccessful) {
-                    document = ajaxResponse.asJsoup()
-                }
-            }
-        }
-
-        val chapters = document.select(chapterListSelector()).map { element ->
+        val scriptData = response.asJsoup().selectFirst("script#mk-chapters-data")!!.data()
+        val dto = scriptData.parseAs<ChapterListDto>()
+        return dto.items.map { chapterDto ->
             SChapter.create().apply {
-                setUrlWithoutDomain(element.attr("href"))
-
-                val titleElement = element.selectFirst("span.ctitle") ?: element.selectFirst("a")
-                name = titleElement?.text() ?: "Capítulo"
-
-                val dateElement = element.selectFirst("span.cmeta") ?: element.selectFirst("span.chapter-release-date")
-                val dateText = dateElement?.text()?.trim() ?: ""
-
-                date_upload = if (dateText.isNotBlank()) {
-                    parseCustomRelativeDate(dateText) ?: parseChapterDate(dateText)
-                } else {
-                    0L
-                }
+                setUrlWithoutDomain(chapterDto.url)
+                name = chapterDto.name
+                date_upload = parseChapterDate(chapterDto.ago)
             }
         }
-
-        val filteredChapters = if (removePremium) {
-            chapters.filterNot { chapter ->
-                chapter.url.contains("/membership-levels/") ||
-                    chapter.name.contains("Vip", ignoreCase = true) ||
-                    chapter.name.contains("Soberano", ignoreCase = true) ||
-                    chapter.name.contains("Premium", ignoreCase = true)
-            }
-        } else {
-            chapters
-        }
-
-        return filteredChapters.distinctBy { it.name.trim() }
     }
 
     private fun parseCustomRelativeDate(dateString: String): Long? {

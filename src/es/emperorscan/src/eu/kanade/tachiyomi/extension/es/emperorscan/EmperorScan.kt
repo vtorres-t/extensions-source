@@ -122,22 +122,28 @@ abstract class EmperorScan :
 
     private val preferences: SharedPreferences = getPreferences()
 
-    override fun chapterListSelector(): String {
-        val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
-        return if (removePremium) {
-            "li.wp-manga-chapter:not(:has(.required-login)):not(:has(.vip-icon)):not(:has(.premium-block))"
-        } else {
-            "li.wp-manga-chapter"
-        }
-    }
+    override fun chapterListSelector() = "div.clist a.crow"
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val chapters = super.chapterListParse(response)
+        val document = response.asJsoup()
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
+
+        val chapters = document.select(chapterListSelector()).map { element ->
+            SChapter.create().apply {
+                setUrlWithoutDomain(element.attr("href"))
+
+                val titleElement = element.selectFirst("span.ctitle")
+                name = titleElement?.text() ?: "Capítulo"
+
+                val dateElement = element.selectFirst("span.cmeta")
+                date_upload = dateElement?.text()?.let { parseChapterDate(it) } ?: 0L
+            }
+        }
 
         val filteredChapters = if (removePremium) {
             chapters.filterNot { chapter ->
-                chapter.name.contains("Vip", ignoreCase = true) ||
+                chapter.url.contains("/membership-levels/") ||
+                    chapter.name.contains("Vip", ignoreCase = true) ||
                     chapter.name.contains("Soberano", ignoreCase = true) ||
                     chapter.name.contains("Premium", ignoreCase = true)
             }

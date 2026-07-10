@@ -6,6 +6,7 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
@@ -14,20 +15,21 @@ import keiyoushi.lib.randomua.setRandomUserAgent
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.Request
 import okhttp3.Response
+import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-abstract class EmperorScan :
-    Madara(),
-    ConfigurableSource {
-    override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))
+class EmperorScan : Madara("ImperioManhua", "https://imperiomanhua.com", "es"), ConfigurableSource {
 
-    private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
+    override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))
 
     override val useLoadMoreRequest = LoadMoreStrategy.Never
     override val useNewChapterEndpoint = true
+
+    private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
     override val client = super.client.newBuilder()
         .rateLimit(2) { it.host == baseUrlHost }
@@ -36,18 +38,73 @@ abstract class EmperorScan :
     override fun headersBuilder() = super.headersBuilder()
         .setRandomUserAgent()
 
-    override fun getMangaUrl(manga: SManga) = "$baseUrl${manga.url}"
+    override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
 
-    override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item:has(h5:contains(Sinopsis)) div"
+    // ================================================================================
+    // PETICIONES DE NAVEGACIÓN Y BÚSQUEDA FLUIDAS (EVITA ADMIN-AJAX)
+    // ================================================================================
 
-    override val mangaDetailsSelectorStatus = "div.post-content_item:has(h5:contains(Estado)) div.summary-content"
+    override fun popularMangaRequest(page: Int): Request {
+        return GET("$baseUrl/manga/page/$page/?m_orderby=views", headers)
+    }
+
+    override fun latestUpdatesRequest(page: Int): Request {
+        return GET("$baseUrl/manga/page/$page/?m_orderby=latest", headers)
+    }
+
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val url = baseUrl.toHttpUrl().newBuilder().apply {
+            addPathSegment("page")
+            addPathSegment(page.toString())
+            addQueryParameter("s", query)
+            addQueryParameter("post_type", "wp-manga")
+        }.build()
+        return GET(url, headers)
+    }
+
+    // ================================================================================
+    // PARSEO ROBUSTO DE LA REJILLA HTML DE IMPERIOMANHUA
+    // ================================================================================
+
+    override fun popularMangaSelector() = "div.agrid a.acard"
+
+    override fun popularMangaFromElement(element: Element): SManga {
+        return SManga.create().apply {
+            setUrlWithoutDomain(element.attr("href"))
+            title = element.selectFirst("div.ac-t")?.text() ?: element.attr("title")
+
+            val imgElement = element.selectFirst("img.ac-cover")
+            thumbnail_url = imgElement?.attr("abs:src")
+                ?.takeIf { it.isNotEmpty() }
+                ?: imgElement?.attr("abs:data-src")
+                    ?: imgElement?.attr("abs:srcset")?.substringBefore(" ")
+        }
+    }
+
+    override fun popularMangaNextPageSelector() = "div.pagination a.next, a.next-page, li.next a, a:contains(»)"
+
+    override fun latestUpdatesSelector() = popularMangaSelector()
+    override fun latestUpdatesFromElement(element: Element) = popularMangaFromElement(element)
+    override fun latestUpdatesNextPageSelector() = popularMangaNextPageSelector()
+
+    override fun searchMangaSelector() = popularMangaSelector()
+    override fun searchMangaFromElement(element: Element) = popularMangaFromElement(element)
+    override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
+
+    // Selectores para extraer los detalles dentro de la ficha del manga
+    override val mangaDetailsSelectorDescription = "div.summary_content div.post-content_item div:has(p), div.description-p, div.manga-about, .summary_content div.post-content"
+    override val mangaDetailsSelectorStatus = "div.post-content_item:contains(Estado) div.summary-content, div.post-status div.summary-content"
+
+    // ================================================================================
+    // FILTRADO DE CAPÍTULOS PREMIUM
+    // ================================================================================
 
     private val preferences: SharedPreferences = getPreferences()
 
     override fun chapterListSelector(): String {
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
         return if (removePremium) {
-            "li.wp-manga-chapter:not(:has(.required-login))"
+            "li.wp-manga-chapter:not(:has(.required-login)):not(:has(.vip-icon)):not(:has(.premium-block))"
         } else {
             "li.wp-manga-chapter"
         }
@@ -57,21 +114,48 @@ abstract class EmperorScan :
         val chapters = super.chapterListParse(response)
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
-        return chapters
-            .let { list ->
-                if (removePremium) {
-                    list.filterNot { chapter ->
-                        chapter.name.contains("Vip", ignoreCase = true) ||
-                            chapter.name.contains("Soberano", ignoreCase = true)
-                    }
-                } else {
-                    list
-                }
+        val filteredChapters = if (removePremium) {
+            chapters.filterNot { chapter ->
+                chapter.name.contains("Vip", ignoreCase = true) ||
+                    chapter.name.contains("Soberano", ignoreCase = true) ||
+                    chapter.name.contains("Premium", ignoreCase = true)
             }
-            .distinctBy { chapter ->
-                chapter.name.trim()
-            }
+        } else {
+            chapters
+        }
+
+        return filteredChapters.distinctBy { it.name.trim() }
     }
+
+    // ================================================================================
+    // SELECTORES NUEVOS PARA LA VISTA DETALLADA (HERO LAYOUT)
+    // ================================================================================
+
+    // Selectores directos para agilizar el mapeo nativo de Madara
+    override val mangaDetailsSelectorTitle = "h1.htitle"
+    override val mangaDetailsSelectorDescription = "div.syn, div.syn p, div.description-p"
+    override val mangaDetailsSelectorStatus = "span.htid, span.htag--status, div.sir:has(.l:contains(Estado)) span.v"
+
+    // Sobreescritura del parseo de detalles para capturar de forma precisa los géneros y autores del nuevo tema
+    override fun mangaDetailsParse(document: Document): SManga {
+        val manga = super.mangaDetailsParse(document)
+
+        // Extracción robusta de géneros en la nueva disposición de elementos
+        val genres = mutableListOf<String>()
+        document.select("div.hchips--genres a.chip, div.genres-content a").forEach { element ->
+            val genre = element.text()
+            if (genre.isNotBlank()) {
+                genres.add(genre)
+            }
+        }
+
+        if (genres.isNotEmpty()) {
+            manga.genre = genres.joinToString(", ")
+        }
+
+        return manga
+    }
+
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()

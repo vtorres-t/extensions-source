@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write # Requerido para buscar y crear Pull Requests
+      pull-requests: write
 
     steps:
       - name: Check out hijo
@@ -47,9 +47,10 @@ jobs:
       - name: Aplicar cambios y limpiar
         if: steps.check_changes.outputs.has_updates == 'true'
         run: |
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@://github.com{{ github.repository }}.git
+
           git checkout -B main origin/main
           
-          # Función de limpieza avanzada combinada
           advanced_clean_processor() {
             echo "Iniciando purgación avanzada..."
           

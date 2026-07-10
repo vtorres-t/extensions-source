@@ -44,6 +44,7 @@ abstract class EmperorScan :
     override val mangaDetailsSelectorDescription = "div#syn, div.sinopsis, div.description-content"
     override val mangaDetailsSelectorStatus = "div.sir:has(span.l:contains(Estado)) span.v, div.manga-status"
     override val mangaDetailsSelectorTitle = "div.post-title h1, h1.titulo-manga, .post-title > h3"
+    override val mangaDetailsSelectorGenre = "div.hchips--genres a.chip, div.genres-content a"
 
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = super.mangaDetailsParse(document)

@@ -101,17 +101,24 @@ abstract class EmperorScan :
     override fun mangaDetailsParse(document: Document): SManga {
         val manga = super.mangaDetailsParse(document)
 
-        // Extracción robusta de géneros en la nueva disposición de elementos en ImperioManhua
-        val genres = mutableListOf<String>()
-        document.select("div.hchips--genres a.chip, div.genres-content a").forEach { element ->
-            val genre = element.text()
-            if (genre.isNotBlank()) {
-                genres.add(genre)
+        val genresAndTags = mutableListOf<String>()
+
+        document.select("div.hchips--genres a.chip").forEach { element ->
+            val genre = element.text().trim()
+            if (genre.isNotBlank() && !genre.equals("Vip", ignoreCase = true)) {
+                genresAndTags.add(genre)
             }
         }
 
-        if (genres.isNotEmpty()) {
-            manga.genre = genres.joinToString(", ")
+        document.select("div.hchips--tags a.chip, a.chip--tag").forEach { element ->
+            val tag = element.text().trim()
+            if (tag.isNotBlank() && !tag.equals("Emperor scan", ignoreCase = true) && !genresAndTags.contains(tag)) {
+                genresAndTags.add(tag)
+            }
+        }
+
+        if (genresAndTags.isNotEmpty()) {
+            manga.genre = genresAndTags.joinToString(", ")
         }
 
         return manga

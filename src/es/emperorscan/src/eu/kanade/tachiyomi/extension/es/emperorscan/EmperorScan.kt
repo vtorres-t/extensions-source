@@ -23,7 +23,9 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-class EmperorScan : Madara("ImperioManhua", "https://imperiomanhua.com", "es"), ConfigurableSource {
+class EmperorScan :
+    Madara("ImperioManhua", "https://imperiomanhua.com", "es"),
+    ConfigurableSource {
 
     override val dateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale("es"))
 
@@ -45,13 +47,9 @@ class EmperorScan : Madara("ImperioManhua", "https://imperiomanhua.com", "es"), 
     // PETICIONES DE NAVEGACIÓN Y BÚSQUEDA FLUIDAS (EVITA ADMIN-AJAX)
     // ================================================================================
 
-    override fun popularMangaRequest(page: Int): Request {
-        return GET("$baseUrl/manga/page/$page/?m_orderby=views", headers)
-    }
+    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/manga/page/$page/?m_orderby=views", headers)
 
-    override fun latestUpdatesRequest(page: Int): Request {
-        return GET("$baseUrl/manga/page/$page/?m_orderby=latest", headers)
-    }
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/manga/page/$page/?m_orderby=latest", headers)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
         val url = baseUrl.toHttpUrl().newBuilder().apply {
@@ -69,17 +67,15 @@ class EmperorScan : Madara("ImperioManhua", "https://imperiomanhua.com", "es"), 
 
     override fun popularMangaSelector() = "div.agrid a.acard"
 
-    override fun popularMangaFromElement(element: Element): SManga {
-        return SManga.create().apply {
-            setUrlWithoutDomain(element.attr("href"))
-            title = element.selectFirst("div.ac-t")?.text() ?: element.attr("title")
+    override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
+        setUrlWithoutDomain(element.attr("href"))
+        title = element.selectFirst("div.ac-t")?.text() ?: element.attr("title")
 
-            val imgElement = element.selectFirst("img.ac-cover")
-            thumbnail_url = imgElement?.attr("abs:src")
-                ?.takeIf { it.isNotEmpty() }
-                ?: imgElement?.attr("abs:data-src")
-                    ?: imgElement?.attr("abs:srcset")?.substringBefore(" ")
-        }
+        val imgElement = element.selectFirst("img.ac-cover")
+        thumbnail_url = imgElement?.attr("abs:src")
+            ?.takeIf { it.isNotEmpty() }
+            ?: imgElement?.attr("abs:data-src")
+            ?: imgElement?.attr("abs:srcset")?.substringBefore(" ")
     }
 
     override fun popularMangaNextPageSelector() = "div.pagination a.next, a.next-page, li.next a, a:contains(»)"

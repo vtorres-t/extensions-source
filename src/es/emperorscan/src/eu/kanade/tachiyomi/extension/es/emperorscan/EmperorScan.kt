@@ -72,6 +72,7 @@ abstract class EmperorScan :
         val tags = document.select(mangaDetailsSelectorTag).map { it.text() }
         val allCategories = (genres + tags).distinct()
 
+        val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
         val filteredCategories = if (removePremium) {
             allCategories.filterNot { item ->
                 item.contains("Vip", ignoreCase = true) ||

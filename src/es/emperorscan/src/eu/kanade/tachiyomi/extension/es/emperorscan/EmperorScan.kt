@@ -1,29 +1,15 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
-import android.content.SharedPreferences
-import android.widget.Toast
-import androidx.preference.PreferenceScreen
-import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.ConfigurableSource
-import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.util.asJsoup
 import keiyoushi.annotation.Source
-import keiyoushi.lib.randomua.addRandomUAPreference
-import keiyoushi.lib.randomua.setRandomUserAgent
 import keiyoushi.network.rateLimit
-import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Locale
 
 @Source
@@ -45,96 +31,25 @@ abstract class EmperorScan :
     override fun headersBuilder() = super.headersBuilder()
         .setRandomUserAgent()
 
-    override fun getMangaUrl(manga: SManga) = baseUrl + manga.url
+    override fun popularMangaSelector() = "div#mkAgrid > a.acard"
 
-    // ================================================================================
-    // PETICIONES DE NAVEGACIÓN Y BÚSQUEDA FLUIDAS (EVITA ADMIN-AJAX)
-    // ================================================================================
+    override fun popularMangaNextPageSelector() = "div.wp-pagenavi > a.nextpostslink"
 
-    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/manga/page/$page/?m_orderby=views", headers)
-
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/manga/page/$page/?m_orderby=latest", headers)
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = baseUrl.toHttpUrl().newBuilder().apply {
-            addPathSegment("page")
-            addPathSegment(page.toString())
-            addQueryParameter("s", query)
-            addQueryParameter("post_type", "wp-manga")
-        }.build()
-        return GET(url, headers)
+    override fun popularMangaFromElement(element: Element) = SManga.create().apply {
+        setUrlWithoutDomain(element.attr("abs:href"))
+        title = element.selectFirst("div.ac-t")!!.ownText()
+        element.selectFirst(popularMangaUrlSelectorImg)?.let {
+            thumbnail_url = processThumbnail(imageFromElement(it), true)
+        }
     }
 
-    // ================================================================================
-    // PARSEO ROBUSTO DE LA REJILLA HTML DE IMPERIOMANHUA
-    // ================================================================================
+    override fun searchMangaParse(response: Response) = popularMangaParse(response)
 
-    override fun popularMangaSelector() = "div.agrid a.acard"
-
-    override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        setUrlWithoutDomain(element.attr("href"))
-        title = element.selectFirst("div.ac-t")?.text() ?: element.attr("title")
-
-        val imgElement = element.selectFirst("img.ac-cover")
-        thumbnail_url = imgElement?.attr("abs:src")
-            ?.takeIf { it.isNotEmpty() }
-            ?: imgElement?.attr("abs:data-src")
-            ?: imgElement?.attr("abs:srcset")?.substringBefore(" ")
-    }
-
-    override fun popularMangaNextPageSelector() = "div.pagination a.next, a.next-page, li.next a, a:contains(»)"
-
-    override fun latestUpdatesSelector() = popularMangaSelector()
-    override fun latestUpdatesFromElement(element: Element) = popularMangaFromElement(element)
-    override fun latestUpdatesNextPageSelector() = popularMangaNextPageSelector()
-
-    override fun searchMangaSelector() = popularMangaSelector()
-    override fun searchMangaFromElement(element: Element) = popularMangaFromElement(element)
-    override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
-
-    // ================================================================================
-    // SELECTORES NUEVOS PARA LA VISTA DETALLADA (HERO LAYOUT DE LA WEB)
-    // ================================================================================
-
-    override val mangaDetailsSelectorTitle = "h1.htitle"
-    override val mangaDetailsSelectorDescription = "div.syn, div.syn p, div.description-p, div.summary_content div.post-content_item div:has(p)"
-    override val mangaDetailsSelectorStatus = "span.htag--status, div.sir:has(.l:contains(Estado)) span.v, div.post-content_item:contains(Estado) div.summary-content"
+    override val mangaDetailsSelectorTitle = "div.hcol > .htitle"
+    override val mangaDetailsSelectorStatus = "div.hcol > .htags > .htag--status"
+    override val mangaDetailsSelectorDescription = "div#syn > p"
     override val mangaDetailsSelectorThumbnail = "div.hposter__card > img"
     override val mangaDetailsSelectorGenre = "div.hcol > .hchips--genres > a.chip"
-
-    override fun mangaDetailsParse(document: Document): SManga {
-        val manga = super.mangaDetailsParse(document)
-
-        val genresAndTags = mutableListOf<String>()
-
-        document.select("div.hchips--genres a.chip").forEach { element ->
-            val genre = element.text().trim()
-            if (genre.isNotBlank() && !genre.equals("Vip", ignoreCase = true)) {
-                genresAndTags.add(genre)
-            }
-        }
-
-        document.select("div.hchips--tags a.chip, a.chip--tag").forEach { element ->
-            val tag = element.text().trim()
-            if (tag.isNotBlank() && !tag.equals("Emperor scan", ignoreCase = true) && !genresAndTags.contains(tag)) {
-                genresAndTags.add(tag)
-            }
-        }
-
-        if (genresAndTags.isNotEmpty()) {
-            manga.genre = genresAndTags.joinToString(", ")
-        }
-
-        return manga
-    }
-
-    // ================================================================================
-    // FILTRADO DE CAPÍTULOS PREMIUM
-    // ================================================================================
-
-    private val preferences: SharedPreferences = getPreferences()
-
-    override fun chapterListSelector() = "div.clist a.crow, li.wp-manga-chapter, .crow"
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val scriptData = response.asJsoup().selectFirst("script#mk-chapters-data")!!.data()
@@ -147,36 +62,7 @@ abstract class EmperorScan :
             }
         }
     }
-
-    private fun parseCustomRelativeDate(dateString: String): Long? {
-        val trimmed = dateString.lowercase()
-        val calendar = Calendar.getInstance()
-
-        return try {
-            val number = trimmed.substringBefore(" ").toInt()
-            when {
-                "minuto" in trimmed || "minutos" in trimmed -> {
-                    calendar.add(Calendar.MINUTE, -number)
-                    calendar.timeInMillis
-                }
-                "hora" in trimmed || "horas" in trimmed -> {
-                    calendar.add(Calendar.HOUR_OF_DAY, -number)
-                    calendar.timeInMillis
-                }
-                "día" in trimmed || "días" in trimmed || "dia" in trimmed -> {
-                    calendar.add(Calendar.DAY_OF_YEAR, -number)
-                    calendar.timeInMillis
-                }
-                "semana" in trimmed || "semanas" in trimmed -> {
-                    calendar.add(Calendar.WEEK_OF_YEAR, -number)
-                    calendar.timeInMillis
-                }
-                else -> null
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
+    private val preferences: SharedPreferences = getPreferences()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         screen.addRandomUAPreference()

@@ -63,17 +63,26 @@ abstract class EmperorScan :
     override val mangaDetailsSelectorTag = "div.hcol > .hchips--tags > a.chip"
 
     override fun mangaDetailsParse(response: Response): SManga {
+        val document = response.asJsoup()
         val manga = super.mangaDetailsParse(response)
 
         manga.description = manga.description?.replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = false)?.trim()
 
-        manga.genre = manga.genre?.split(", ")
-            ?.filterNot { genre ->
-                genre.contains("Vip", ignoreCase = true) ||
-                    genre.contains("Premium", ignoreCase = true) ||
-                    genre.contains("Emperor scan", ignoreCase = true)
+        val genres = document.select(mangaDetailsSelectorGenre).map { it.text() }
+        val tags = document.select(mangaDetailsSelectorTag).map { it.text() }
+        val allCategories = (genres + tags).distinct()
+
+        val filteredCategories = if (removePremium) {
+            allCategories.filterNot { item ->
+                item.contains("Vip", ignoreCase = true) ||
+                    item.contains("Premium", ignoreCase = true) ||
+                    item.contains("Emperor scan", ignoreCase = true)
             }
-            ?.joinToString(", ")
+        } else {
+            allCategories
+        }
+
+        manga.genre = filteredCategories.joinToString(", ")
 
         return manga
     }

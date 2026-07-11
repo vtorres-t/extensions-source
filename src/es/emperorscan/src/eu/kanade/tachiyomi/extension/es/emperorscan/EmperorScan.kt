@@ -60,11 +60,44 @@ abstract class EmperorScan :
     override val mangaDetailsSelectorDescription = "div#syn > p"
     override val mangaDetailsSelectorThumbnail = "div.hposter__card > img"
     override val mangaDetailsSelectorGenre = "div.hcol > .hchips--genres > a.chip"
+    override val mangaDetailsSelectorTag = "div.hcol > .hchips--tags > a.chip"
+
+    override fun mangaDetailsParse(response: Response): SManga {
+        val manga = super.mangaDetailsParse(response)
+
+        manga.description = manga.description?.replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = false)?.trim()
+
+        manga.genre = manga.genre?.split(", ")
+            ?.filterNot { genre ->
+                genre.contains("Vip", ignoreCase = true) ||
+                    genre.contains("Premium", ignoreCase = true) ||
+                    genre.contains("Emperor scan", ignoreCase = true)
+            }
+            ?.joinToString(", ")
+
+        return manga
+    }
 
     override fun chapterListParse(response: Response): List<SChapter> {
         val scriptData = response.asJsoup().selectFirst("script#mk-chapters-data")!!.data()
         val dto = scriptData.parseAs<ChapterListDto>()
-        return dto.items.map { chapterDto ->
+
+        val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
+        val chapters = dto.items
+
+        val filteredChapters = if (removePremium) {
+            chapters.filterNot { chapter ->
+                chapter.name.contains("Vip", ignoreCase = true) ||
+                    chapter.name.contains("Soberano", ignoreCase = true) ||
+                    chapter.name.contains("Premium", ignoreCase = true) ||
+                    chapter.url.contains("/membership-levels/", ignoreCase = true) ||
+                    chapter.st.contains("locked", ignoreCase = true)
+            }
+        } else {
+            chapters
+        }
+
+        return filteredChapters.map { chapterDto ->
             SChapter.create().apply {
                 setUrlWithoutDomain(chapterDto.url)
                 name = chapterDto.name
@@ -72,6 +105,7 @@ abstract class EmperorScan :
             }
         }
     }
+
     private val preferences: SharedPreferences = getPreferences()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {

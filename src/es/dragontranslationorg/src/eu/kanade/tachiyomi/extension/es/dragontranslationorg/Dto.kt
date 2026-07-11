@@ -12,4 +12,5 @@ class ChapterDto(
     val name: String,
     val url: String,
     val ago: String,
+    val st: String,
 )

@@ -17,6 +17,7 @@ import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -63,7 +64,8 @@ abstract class EmperorScan :
     override val mangaDetailsSelectorTag = "div.hcol > .hchips--tags > a.chip"
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val document = response.asJsoup()
+        val responseBodyCopy = response.peekBody(Long.MAX_VALUE)
+        val document = responseBodyCopy.string().let { org.jsoup.Jsoup.parse(it, response.request.url.toString()) }
         val manga = super.mangaDetailsParse(response)
 
         manga.description = manga.description?.replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = false)?.trim()

@@ -972,7 +972,7 @@ abstract class Madara : HttpSource() {
                 parseRelativeDate(date)
             }
 
-            WS_HACE.startsWith(date) -> {
+            WS_HACE.any { prefix -> date.startsWith(prefix) || date.endsWith(prefix) } -> {
                 parseRelativeDate(date)
             }
 
@@ -1180,13 +1180,13 @@ abstract class Madara : HttpSource() {
         private val WS_YESTERDAY = WordSet("yesterday", "يوم واحد")
         private val WS_TODAY = WordSet("today")
         private val WS_TWO_DAYS = WordSet("يومين")
-        private val WS_AGO = WordSet("ago", "atrás", "önce", "قبل", "trước")
+        private val WS_AGO = WordSet("ago", "atrás", "atras", "önce", "قبل", "trước")
         private val WS_HACE = WordSet("hace", "năm", "tháng", "tuần", "ngày", "giờ", "phút", "giây")
         private val WS_DAYS = WordSet("hari", "gün", "jour", "día", "dia", "dias", "day", "วัน", "ngày", "giorni", "أيام", "天")
         private val WS_HOURS = WordSet("jam", "saat", "heure", "hora", "horas", "hour", "ชั่วโมง", "giờ", "ore", "ساعة", "小时")
         private val WS_MINS = WordSet("menit", "dakika", "min", "minute", "minuto", "minutos", "นาที", "دقائق", "phút")
-        private val WS_SECS = WordSet("detik", "segundo", "second", "วินาที", "giây")
-        private val WS_WEEKS = WordSet("week", "semana", "tuần")
+        private val WS_SECS = WordSet("detik", "segundo", "segundos", "second", "วินาที", "giây")
+        private val WS_WEEKS = WordSet("week", "semana", "semanas", "tuần")
         private val WS_MONTHS = WordSet("month", "mes", "tháng")
         private val WS_YEARS = WordSet("year", "año", "năm")
     }

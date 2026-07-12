@@ -972,7 +972,10 @@ abstract class Madara : HttpSource() {
                 parseRelativeDate(date)
             }
 
-            WS_HACE.any { prefix -> date.startsWith(prefix) || date.endsWith(prefix) } -> {
+            WS_HACE.endsWith(date) -> {
+                parseRelativeDate(date)
+            }
+            WS_HACE.startsWith(date) -> {
                 parseRelativeDate(date)
             }
 

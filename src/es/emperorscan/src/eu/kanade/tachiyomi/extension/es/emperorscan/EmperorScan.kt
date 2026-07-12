@@ -17,7 +17,6 @@ import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -64,28 +63,22 @@ abstract class EmperorScan :
     override val mangaDetailsSelectorTag = "div.hcol > .hchips--tags > a.chip"
 
     override fun mangaDetailsParse(response: Response): SManga {
-        val responseBodyCopy = response.peekBody(Long.MAX_VALUE)
-        val document = responseBodyCopy.string().let { org.jsoup.Jsoup.parse(it, response.request.url.toString()) }
         val manga = super.mangaDetailsParse(response)
 
         manga.description = manga.description?.replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = false)?.trim()
 
-        val genres = document.select(mangaDetailsSelectorGenre).map { it.text() }
-        val tags = document.select(mangaDetailsSelectorTag).map { it.text() }
-        val allCategories = (genres + tags).distinct()
-
         val removePremium = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
-        val filteredCategories = if (removePremium) {
-            allCategories.filterNot { item ->
+        if (removePremium && !manga.genre.isNullOrEmpty()) {
+            val allCategories = manga.genre!!.split(",").map { it.trim() }
+
+            val filteredCategories = allCategories.filterNot { item ->
                 item.contains("Vip", ignoreCase = true) ||
                     item.contains("Premium", ignoreCase = true) ||
                     item.contains("Emperor scan", ignoreCase = true)
             }
-        } else {
-            allCategories
-        }
 
-        manga.genre = filteredCategories.joinToString(", ")
+            manga.genre = filteredCategories.joinToString(", ")
+        }
 
         return manga
     }

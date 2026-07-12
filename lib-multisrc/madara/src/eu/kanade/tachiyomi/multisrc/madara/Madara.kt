@@ -972,10 +972,7 @@ abstract class Madara : HttpSource() {
                 parseRelativeDate(date)
             }
 
-            WS_HACE.endsWith(date) -> {
-                parseRelativeDate(date)
-            }
-            WS_HACE.startsWith(date) -> {
+            WS_HACE.startsOrEndsWith(date) -> {
                 parseRelativeDate(date)
             }
 
@@ -1199,4 +1196,5 @@ class WordSet(private vararg val words: String) {
     fun anyWordIn(dateString: String): Boolean = words.any { dateString.contains(it, ignoreCase = true) }
     fun startsWith(dateString: String): Boolean = words.any { dateString.startsWith(it, ignoreCase = true) }
     fun endsWith(dateString: String): Boolean = words.any { dateString.endsWith(it, ignoreCase = true) }
+    fun startsOrEndsWith(dateString: String): Boolean = words.any { dateString.startsWith(it, ignoreCase = true) || dateString.endsWith(it, ignoreCase = true) }
 }

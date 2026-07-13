@@ -1,4 +1,4 @@
-name: Sincronizar y Limpiar Fork
+name: Sync and Clean Fork
 
 on:
   schedule:
@@ -156,6 +156,13 @@ jobs:
             # Volvemos a fusionar en la nueva rama y limpiamos para subir el escenario de conflicto real
             git merge upstream/main --no-commit --no-ff || true
             advanced_clean_processor
+          
+            if git diff --quiet && git diff --staged --quiet; then
+              echo "✅ Tras la limpieza no quedan cambios ni conflictos reales en esta rama. Cancelando PR."
+              git checkout main
+              git branch -D conflict-sync
+              exit 0
+            fi
 
             git add .
             git commit -m "chore: conflictos detectados al sincronizar con upstream"
@@ -174,9 +181,9 @@ jobs:
           fi
 
           if git diff --quiet && git diff --staged --quiet; then
-            echo "El repositorio ya estaba al día tras aplicar la limpieza avanzada. No se requiere commit."
+            echo "✅ El repositorio ya estaba al día tras aplicar la limpieza avanzada. No se requiere commit."
           else
             git add .
-            git commit -m "sync: limpieza profunda usando exclusión avanzada de archivos/carpetas"
+            git commit -m "sync: limpieza"
             git push origin main
           fi

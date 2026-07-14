@@ -5,14 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "Flame Comics"
-    versionCode = 50
+    name = "Akaza Scans"
+    versionCode = 0
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
+    theme = "mangathemesia"
 
     source {
         lang = "en"
-        baseUrl = "https://flamecomics.xyz"
-        id = 8531542650987673943L
+        baseUrl = "https://akazascans.org"
     }
 }

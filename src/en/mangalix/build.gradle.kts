@@ -5,16 +5,17 @@ plugins {
 }
 
 keiyoushi {
-    name = "Hiperdex"
-    versionCode = 80
+    name = "MangaLix"
+    versionCode = 1
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
-    theme = "hiper"
 
     source {
         lang = "en"
-        baseUrl {
-            custom("https://hiperdex.tv")
-        }
+        baseUrl = "https://mangalix.com"
+    }
+
+    deeplink {
+        path("/manga/..*")
     }
 }

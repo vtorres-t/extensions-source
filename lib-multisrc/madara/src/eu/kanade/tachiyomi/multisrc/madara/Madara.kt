@@ -1209,7 +1209,6 @@ abstract class Madara : HttpSource() {
         private val WS_WEEKS = WordSet("week", "semana", "semanas", "tuần")
         private val WS_MONTHS = WordSet("month", "mes", "tháng")
         private val WS_YEARS = WordSet("year", "año", "năm")
-
     }
 }
 

@@ -6,9 +6,9 @@ plugins {
 
 keiyoushi {
     name = "3Hentai"
-    versionCode = 3
+    versionCode = 5
     contentWarning = ContentWarning.NSFW
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     listOf(
         "all",
@@ -19,5 +19,9 @@ keiyoushi {
             lang = it
             baseUrl = "https://3hentai.net"
         }
+    }
+
+    deeplink {
+        path("/d/..*")
     }
 }

@@ -80,7 +80,17 @@ class SeriesChapterDto(
     val isUnreleased: Boolean = false,
 ) {
     fun toSChapter(seriesSlug: String, organizationSlug: String) = SChapter.create().apply {
-        name = "Capítulo ${number.toString().removeSuffix(".0")} - $title"
+        val chapterNumberStr = number.toString().removeSuffix(".0")
+        val cleanTitle = title.trim()
+        val isRedundant = cleanTitle.lowercase().contains("cap") ||
+            cleanTitle == chapterNumberStr
+
+        name = if (isRedundant || cleanTitle.isBlank()) {
+            "Capítulo $chapterNumberStr"
+        } else {
+            "Capítulo $chapterNumberStr - $cleanTitle"
+        }
+
         date_upload = releasedAt.let { dateFormat.tryParse(it) }
         url = "$number/$seriesSlug/$organizationSlug"
     }

@@ -5,10 +5,10 @@ plugins {
 }
 
 keiyoushi {
-    name = "MANGA Plus by SHUEISHA"
-    versionCode = 62
+    name = "MANGA Plus"
+    versionCode = 63
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     listOf("en", "es").forEach {
         source {
@@ -28,6 +28,5 @@ keiyoushi {
 }
 
 dependencies {
-
     implementation(project(":lib:i18n"))
 }

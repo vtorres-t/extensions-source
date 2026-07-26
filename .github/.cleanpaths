@@ -19,3 +19,5 @@ src/uk
 src/vi
 src/zh
 .github/ISSUE_TEMPLATE
+.github/workflows/codeberg_mirror.yml
+

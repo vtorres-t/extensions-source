@@ -24,7 +24,7 @@ REPO_JAR_DIR.mkdir(parents=True, exist_ok=True)
 
 APK_BASE_URL = "https://cdn.jsdelivr.net/gh/vtorres-t/ext@repo/apk"
 JAR_BASE_URL = "https://raw.githubusercontent.com/vtorres-t/ext/repo/jar"
-ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/vtorres-t/ext@main"
+ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/vtorres-t/extensions-source@main"
 
 to_delete: list[str] = json.loads(sys.argv[1])
 

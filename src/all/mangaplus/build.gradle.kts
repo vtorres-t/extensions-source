@@ -5,8 +5,13 @@ plugins {
 }
 
 keiyoushi {
+<<<<<<< HEAD
     name = "MANGA Plus"
     versionCode = 63
+=======
+    name = "MANGA Plus by SHUEISHA"
+    versionCode = 64
+>>>>>>> upstream/main
     contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 

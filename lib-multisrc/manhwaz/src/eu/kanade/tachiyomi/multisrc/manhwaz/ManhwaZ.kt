@@ -35,7 +35,7 @@ abstract class ManhwaZ : HttpSource() {
 
     protected val intl = Intl(
         lang,
-        setOf("en", "vi"),
+        setOf("en"),
         "en",
         this::class.java.classLoader!!,
     )

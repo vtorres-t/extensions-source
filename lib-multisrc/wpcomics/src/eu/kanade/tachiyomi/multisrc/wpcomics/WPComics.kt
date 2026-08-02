@@ -38,7 +38,7 @@ abstract class WPComics : HttpSource() {
     open val intl = Intl(
         language = lang,
         baseLanguage = "en",
-        availableLanguages = setOf("en", "vi", "ja"),
+        availableLanguages = setOf("en"),
         classLoader = this::class.java.classLoader!!,
     )
 

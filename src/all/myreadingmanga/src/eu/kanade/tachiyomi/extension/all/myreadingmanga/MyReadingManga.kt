@@ -31,19 +31,8 @@ abstract class MyReadingManga : HttpSource() {
 
     private val siteLang: String
         get() = when (lang) {
-            "ar" -> "Arabic"
-            "id" -> "Indonesia"
-            "zh" -> "Chinese"
             "en" -> "English"
-            "de" -> "German"
-            "it" -> "Italian"
-            "ja" -> "Japanese"
-            "ko" -> "Korean"
-            "pt-BR" -> "Portuguese"
-            "ru" -> "Russian"
             "es" -> "Spanish"
-            "tr" -> "Turkish"
-            "vi" -> "Vietnamese"
             else -> lang
         }
 

@@ -100,7 +100,6 @@ for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
         )
     )
 
-# Merge with the already-published index, dropping the deleted/rebuilt modules.
 with REPO_DIR.joinpath("index.json").open() as f:
     remote_proto = json_format.Parse(f.read(), index_pb2.Index())
 
@@ -122,14 +121,18 @@ index = index_pb2.Index(
     extensionList=index_pb2.ExtensionList(extensions=all_extensions),
 )
 
+json_data = json_format.MessageToJson(
+    index,
+    always_print_fields_with_no_presence=False,
+    preserving_proto_field_name=True,
+)
 with REPO_DIR.joinpath("index.json").open("w", encoding="utf-8") as f:
-    f.write(
-        json_format.MessageToJson(
-            index,
-            always_print_fields_with_no_presence=False,
-            preserving_proto_field_name=True,
-        )
-    )
+    f.write(json_data)
+
+objeto_json = json.loads(json_data)
+json_minificado = json.dumps(objeto_json, separators=(',', ':'))
+with REPO_DIR.joinpath("index.min.json").open("w", encoding="utf-8") as f:
+    f.write(json_minificado)
 
 with REPO_DIR.joinpath("index.pb").open("wb") as f:
     f.write(gzip.compress(index.SerializeToString(deterministic=True)))
@@ -143,3 +146,4 @@ with REPO_DIR.joinpath("index.html").open("w", encoding="utf-8") as f:
         name_escaped = html.escape(f"Tachiyomi: {ext.name}")
         f.write(f'<a href="{apk_escaped}">{name_escaped}</a>\n')
     f.write("</pre>\n</body>\n</html>\n")
+

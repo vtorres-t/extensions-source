@@ -50,6 +50,25 @@ def get_icon_url(module: str, theme: str | None) -> str:
             return f"{ICON_BASE_URL}/{theme_icon}"
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
 
+def cargar_excepciones_url() -> list[str]:
+    """Lee el archivo .urlignore omitiendo comentarios y líneas vacías."""
+    excepciones = []
+    if URL_IGNORE_CONFIG.is_file():
+        try:
+            with URL_IGNORE_CONFIG.open("r", encoding="utf-8") as f:
+                for linea in f:
+                    linea_limpia = linea.strip()
+                    if linea_limpia and not linea_limpia.startswith("#"):
+                        excepciones.append(linea_limpia)
+            print(f"ℹ️ Cargadas {len(excepciones)} reglas de excepción desde {URL_IGNORE_CONFIG}")
+        except Exception as e:
+            print(f"⚠️ Error al leer el archivo de excepciones: {e}")
+    else:
+        print(f"ℹ️ No se encontró el archivo de excepciones {URL_IGNORE_CONFIG}. Se procederá sin excepciones.")
+    return excepciones
+
+# Cargamos las excepciones globalmente al arrancar
+EXCEPCIONES_SIEMPRE_ACTIVAS = cargar_excepciones_url()
 
 # ========================================================
 # COMPROBACIÓN ASÍNCRONA ULTRA RÁPIDA (EN PARALELO)
@@ -62,6 +81,12 @@ async def verificar_url(session, url: str) -> bool:
     """
     if not url:
         return False
+
+    # Comprobación de excepciones por coincidencia en la URL
+    if any(excepcion in url for excepcion in EXCEPCIONES_SIEMPRE_ACTIVAS):
+            print(f"  -> [Excepción por URL] Forzando inclusión de: {url}")
+            return True
+
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     try:
         timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT_SEGUNDOS)

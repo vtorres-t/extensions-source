@@ -13,6 +13,7 @@ import index_pb2
 # --- Configuración de configuracion para verificacion HTTP ---
 MAX_CONEXIONES_SIMULTANEAS = 25  # Número máximo de peticiones paralelas
 HTTP_TIMEOUT_SEGUNDOS = 4       # Segundos de espera máxima por URL
+URL_IGNORE_CONFIG = Path(".github/.urlignore")
 
 # --- Configuración de directorios de artefactos ---
 ARTIFACTS_DIR = Path.home() / "apk-artifacts"

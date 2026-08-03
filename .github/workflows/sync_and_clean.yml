@@ -186,4 +186,10 @@ jobs:
             git add .
             git commit -m "sync: limpieza"
             git push origin main
+            
+            echo "🚀 Sincronización exitosa. Lanzando CI..."
+          
+            GH_TOKEN="${{ secrets.BUILD_PREVIEW_TOKEN }}" gh workflow run "build_push.yml" \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref main
           fi

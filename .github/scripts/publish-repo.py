@@ -4,6 +4,9 @@ import json
 import sys
 from pathlib import Path
 
+import urllib.request
+import urllib.error
+
 from google.protobuf import json_format
 
 import index_pb2
@@ -55,6 +58,37 @@ def get_icon_url(module: str, theme: str | None) -> str:
 
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
 
+def urls_de_fuentes_estan_activas(sources: list) -> bool:
+    """
+    Verifica las URLs de las fuentes de una extensión.
+    Si una extensión contiene múltiples fuentes, basta con que UNA esté activa
+    para mantener la extensión. Si todas están caídas, devuelve False.
+    """
+    if not sources:
+        return True # Si no tiene fuentes declaradas, la incluimos por seguridad
+
+    for source in sources:
+        url = source.get("baseUrl")
+        if not url:
+            continue
+
+        try:
+            # Petición tipo HEAD con User-Agent común y un timeout corto de 5 segundos
+            req = urllib.request.Request(
+                url,
+                method="HEAD",
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.status < 400:
+                    return True # Encontró al menos una fuente activa, la extensión es válida
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
+            print(f"  -> Fuente inactiva o inaccesible ({url}): {e}")
+            continue
+
+    return False
+
+
 for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
     with info_file.open(encoding="utf-8") as f:
         info = json.load(f)
@@ -70,6 +104,12 @@ for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
         raise FileNotFoundError(
             f"{package_name}: no release jar found under {info_file.parent}"
         )
+
+    print(f"Validando estado online de las fuentes para: {info['name']}...")
+    if not urls_de_fuentes_estan_activas(info.get("sources", [])):
+        print(f"❌ Extensión omitida del índice (Fuentes caídas o inactivas): {info['name']}\n")
+        continue
+    print(f"✅ Extensión aprobada (Fuentes activas).\n")
 
     (REPO_APK_DIR / apk.name).write_bytes(apk.read_bytes())
     (REPO_JAR_DIR / jar.name).write_bytes(jar.read_bytes())

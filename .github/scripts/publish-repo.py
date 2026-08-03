@@ -10,6 +10,10 @@ from google.protobuf import json_format
 
 import index_pb2
 
+# --- Configuración de configuracion para verificacion HTTP ---
+MAX_CONEXIONES_SIMULTANEAS = 25  # Número máximo de peticiones paralelas
+HTTP_TIMEOUT_SEGUNDOS = 4       # Segundos de espera máxima por URL
+
 # --- Configuración de directorios de artefactos ---
 ARTIFACTS_DIR = Path.home() / "apk-artifacts"
 REPO_DIR = Path.cwd()
@@ -57,19 +61,17 @@ async def verificar_url(session, url: str) -> bool:
         return False
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     try:
-        # Timeout total de 4 segundos para evitar atascos
-        timeout = aiohttp.ClientTimeout(total=4)
+        timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT_SEGUNDOS)
         async with session.head(url, headers=headers, timeout=timeout, allow_redirects=True) as response:
             return response.status < 400
     except Exception:
         return False
 
 async def filtrar_extensiones_validas(extensiones_info: list) -> set[str]:
-    """Comprueba todas las URLs del repositorio en paralelo."""
+    """Comprueba todas las URLs del repositorio en paralelo con un límite."""
     urls_a_comprobar = []
     mapeo_url_paquete = []
 
-    # Extraemos todas las URLs únicas para no repetir peticiones innecesarias
     for info, _ in extensiones_info:
         for source in info.get("sources", []):
             url = source.get("baseUrl")
@@ -77,16 +79,20 @@ async def filtrar_extensiones_validas(extensiones_info: list) -> set[str]:
                 urls_a_comprobar.append(url)
                 mapeo_url_paquete.append((url, info["packageName"]))
 
-    # Si no hay URLs que comprobar, todas son válidas
     if not urls_a_comprobar:
         return {info["packageName"] for info, _ in extensiones_info}
 
-    # Lanzamos todas las peticiones HTTP al mismo tiempo
+    sem = asyncio.Semaphore(MAX_CONEXIONES_SIMULTANEAS)
+
+    async def verificar_con_semaforo(session, url):
+        async with sem: # El semáforo controla que nunca pasen más de 25 hilos a la vez [2]
+            return await verificar_url(session, url)
+
     async with aiohttp.ClientSession() as session:
-        tareas = [verificar_url(session, url) for url in urls_a_comprobar]
+        # Usamos la función envuelta en el semáforo
+        tareas = [verificar_con_semaforo(session, url) for url in urls_a_comprobar]
         resultados = await asyncio.gather(*tareas)
 
-    # Identificamos qué paquetes tienen al menos una fuente activa
     paquetes_activos = set()
     for (url, paquete), esta_activa in zip(mapeo_url_paquete, resultados):
         if esta_activa:
@@ -95,6 +101,7 @@ async def filtrar_extensiones_validas(extensiones_info: list) -> set[str]:
             print(f"  -> Fuente caída detectada: {url}")
 
     return paquetes_activos
+
 
 # ========================================================
 

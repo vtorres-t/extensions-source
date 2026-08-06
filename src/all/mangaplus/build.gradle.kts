@@ -5,8 +5,8 @@ plugins {
 }
 
 keiyoushi {
-    name = "MANGA Plus"
-    versionCode = 64
+    name = "MANGA Plus by SHUEISHA"
+    versionCode = 65
     contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 

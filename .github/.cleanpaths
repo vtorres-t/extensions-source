@@ -21,4 +21,6 @@ src/zh
 .github/ISSUE_TEMPLATE
 .github/workflows/codeberg_mirror.yml
 .github/workflows/issue_moderator.yml
+.github/pull_request_template.md
+.github/renovate.json
 

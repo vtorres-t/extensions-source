@@ -190,7 +190,7 @@ async def filtrar_extensiones_validas(extensiones_info: list) -> set[str]:
 
 # ========================================================
 
-def get_release_tag(batch_index: int) -> str:
+def get_release_tag(batch_index: int, release_count: int) -> str:
     return (
         f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
     )
@@ -427,7 +427,7 @@ def main():
         release_ext.CopyFrom(ext)
 
         if changed:
-            tag = get_release_tag(i // ext_per_release)
+            tag = get_release_tag(i // ext_per_release, release_count)
             release_ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
             release_ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
         else:

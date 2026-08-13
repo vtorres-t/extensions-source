@@ -479,7 +479,7 @@ def main():
 
     for i in range(0, total_extensions, ext_per_release):
         batch = new_extensions[i : i + ext_per_release]
-        tag = get_release_tag(i // ext_per_release)
+        tag = get_release_tag(i // ext_per_release, release_count)
         files_to_upload = []
         for ext, apk, jar, changed in batch:
             if changed:

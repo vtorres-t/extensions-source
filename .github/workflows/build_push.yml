@@ -38,13 +38,17 @@ jobs:
           persist-credentials: false
 
       - name: Get last successful CI commit
+        id: nx-shas
         uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
         with:
           fallback-sha: 4b825dc642cb6eb9a060e54bf8d69288fbee4904 # empty tree
 
       - id: generate-matrices
         name: Create output matrices
+        env:
+          NX_BASE: ${{ steps.nx-shas.outputs.base }}
         run: |
+          pip install aiohttp
           python ./.github/scripts/generate-build-matrices.py "$NX_BASE" Release
 
   build:
@@ -54,7 +58,7 @@ jobs:
     timeout-minutes: 30
     if: ${{ toJson(fromJson(needs.prepare.outputs.matrix).chunk) != '[]' }}
     strategy:
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout main branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -95,7 +99,6 @@ jobs:
   publish:
     name: Publish extension repo
     needs: [prepare, build]
-    # Run whenever there's anything to publish, new/changed builds OR only deletions
     if: >-
       always() &&
       github.repository == 'vtorres-t/extensions-source' &&
@@ -113,14 +116,14 @@ jobs:
           path: ~/apk-artifacts
 
       - name: Checkout main branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5asem5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           path: main
           persist-credentials: false
 
       - name: Checkout repo branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5asem5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: vtorres-t/ext
           token: ${{ secrets.BUILD_PREVIEW_TOKEN }}

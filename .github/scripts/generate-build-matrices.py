@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 import json
 import os
@@ -5,6 +6,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from check_urls import verificar_url, MAX_CONEXIONES_SIMULTANEAS
 
 EXTENSION_REGEX = re.compile(r"^src/(?P<lang>\w+)/(?P<extension>\w+)")
 MULTISRC_LIB_REGEX = re.compile(r"^lib-multisrc/(?P<multisrc>\w+)")
@@ -189,14 +191,86 @@ def get_all_modules() -> tuple[list[str], list[str]]:
             deleted.append(f"{lang.name}.{extension.name}")
     return modules, deleted
 
-def main() -> None:
+async def filtrar_modulos_validos(modules: list[str]) -> list[str]:
+    """Cruza los módulos con el archivo index para descartar los que tengan URLs caídas."""
+    import aiohttp
+
+    index_path = Path("index.beta.json")
+    if not index_path.exists():
+        index_path = Path("index.json")
+
+    package_urls = {}
+    if index_path.exists():
+        try:
+            with index_path.open(encoding="utf-8") as f:
+                data = json.load(f)
+                extensions_list = data.get("extensionList", {}).get("extensions", []) if "extensionList" in data else data.get("extensions", [])
+                for ext in extensions_list:
+                    pkg = ext.get("packageName", "")
+                    sources = ext.get("sources", [])
+                    urls = [s.get("baseUrl") for s in sources if s.get("baseUrl")]
+                    if pkg and urls:
+                        package_urls[pkg] = urls
+        except Exception as e:
+            print(f"⚠️ No se pudo parsear el índice para validar URLs: {e}")
+
+    if not package_urls:
+        print("ℹ️ No se encontraron URLs previas en el índice. Se compilarán todos los módulos.")
+        return modules
+
+    urls_a_comprobar = []
+    mapeo_url_modulo = []
+    modulos_sin_url = []
+
+    for mod in modules:
+        match = MODULE_REGEX.match(mod)
+        if match:
+            lang = match.group("lang")
+            ext_name = match.group("extension")
+            pkg_id = f"tachiyomi.{lang}.{ext_name}"
+
+            if pkg_id in package_urls:
+                for url in package_urls[pkg_id]:
+                    urls_a_comprobar.append(url)
+                    mapeo_url_modulo.append((url, mod))
+            else:
+                modulos_sin_url.append(mod)
+        else:
+            modulos_sin_url.append(mod)
+
+    if not urls_a_comprobar:
+        return modules
+
+    sem = asyncio.Semaphore(MAX_CONEXIONES_SIMULTANEAS)
+    async def verificar_con_semaforo(session, url):
+        async with sem:
+            return await verificar_url(session, url)
+
+    async with aiohttp.ClientSession() as session:
+        tareas = [verificar_con_semaforo(session, url) for url in urls_a_comprobar]
+        resultados = await asyncio.gather(*tareas)
+
+    modulos_activos = set(modulos_sin_url)
+    for (url, mod), esta_activa in zip(mapeo_url_modulo, resultados):
+        if esta_activa:
+            modulos_activos.add(mod)
+        else:
+            print(f"🛑 [URL CAÍDA]: Saltando generación de {mod} -> Fuente rota: {url}")
+
+    return [m for m in modules if m in modulos_activos]
+
+async def main_async() -> None:
     _, ref, build_type = sys.argv
     modules, deleted = get_module_list(ref)
 
+    if modules:
+        print(f"🔍 Evaluando conectividad de las fuentes para {len(modules)} módulos detectados...")
+        modules = await filtrar_modulos_validos(modules)
+
     chunked = {
         "chunk": [
-            {"number": i + 1, "modules": modules}
-            for i, modules in
+            {"number": i + 1, "modules": list(batch)}
+            for i, batch in
             enumerate(itertools.batched(
                 map(lambda x: f"{x}:assemble{build_type}", modules),
                 int(os.getenv("CI_CHUNK_SIZE", 65))
@@ -212,4 +286,4 @@ def main() -> None:
             out_file.write(f"delete={json.dumps(deleted)}\n")
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main_async())

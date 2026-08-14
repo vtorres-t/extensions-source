@@ -107,7 +107,7 @@ jobs:
       needs.build.result != 'cancelled' &&
       needs.prepare.outputs.delete != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - name: Download APK artifacts
         if: needs.build.result == 'success'
@@ -116,14 +116,14 @@ jobs:
           path: ~/apk-artifacts
 
       - name: Checkout main branch
-        uses: actions/checkout@3d3c42e5asem5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           path: main
           persist-credentials: false
 
       - name: Checkout repo branch
-        uses: actions/checkout@3d3c42e5asem5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: vtorres-t/ext
           token: ${{ secrets.BUILD_PREVIEW_TOKEN }}
@@ -138,7 +138,7 @@ jobs:
         run: |
           cd repo
           pip install protobuf aiohttp
-          python ../main/.github/scripts/publish-repo.py "$DELETE" "$GITHUB_SHA"
+          python -u ../main/.github/scripts/publish-repo.py "$DELETE" "$GITHUB_SHA"
           git config --global user.email "156378334+keiyoushi-bot@users.noreply.github.com"
           git config --global user.name "keiyoushi-bot"
           git status
@@ -146,11 +146,8 @@ jobs:
             git add .
             git commit -m "Update extensions repo"
             git push
-            curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.min.json
             curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.json
             curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.pb
-            curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.beta.json
-            curl https://purge.jsdelivr.net/gh/vtorres-t/ext@repo/index.beta.pb
           else
             echo "No changes to commit"
           fi

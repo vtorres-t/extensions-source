@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_CHUNK_SIZE: 30
+  CI_CHUNK_SIZE: 50
   IS_PR_CHECK: false
 
 jobs:

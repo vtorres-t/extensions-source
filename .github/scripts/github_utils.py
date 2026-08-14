@@ -12,38 +12,30 @@ UPLOAD_CHUNK_SIZE = 80
 UPLOAD_CHUNK_INTERVAL = 30
 
 def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
+    attempt = 1
     delay = RETRY_BASE_DELAY
-    for attempt in range(1, RETRY_ATTEMPTS + 1):
+    while True:
         result = subprocess.run(
             ["gh", *args],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             check=False,
         )
         if result.returncode == 0:
             return result.stdout.strip()
 
         error = result.stderr.lower()
+        if any(success_error in error for success_error in success_errors):
+            return result.stdout.strip()
 
-        # The upload endpoint does not expose retry headers through gh, so use the
-        # documented one-minute minimum with exponential backoff for secondary limits.
-        # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-        if "secondary rate limit" in error:
-            if attempt < RETRY_ATTEMPTS:
-                print(
-                    f"secondary rate limit hit, retrying in {delay}s "
-                    f"(attempt {attempt}/{RETRY_ATTEMPTS})",
-                    file=sys.stderr,
-                )
-                time.sleep(delay)
-                delay *= 2
-                continue
-
+        if "secondary rate limit" in error and attempt < RETRY_ATTEMPTS:
+            retry_delay = delay
+            delay *= 2
         elif "api rate limit exceeded" in error and attempt < RETRY_ATTEMPTS:
             rate_limit = subprocess.run(
                 ["gh", "api", "rate_limit", "--jq", ".resources.core.reset"],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
                 check=False,
             )
             retry_delay = RETRY_BASE_DELAY
@@ -52,19 +44,15 @@ def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
                     int(rate_limit.stdout.strip()) - int(time.time()) + 10,
                     RETRY_BASE_DELAY,
                 )
-            print(
-                f"API rate limit hit, retrying in {retry_delay}s "
-                f"(attempt {attempt}/{RETRY_ATTEMPTS})",
-                file=sys.stderr,
-            )
-            time.sleep(retry_delay)
-            continue
+        else:
+            raise RuntimeError(f"gh {' '.join(args)} failed: {result.stderr.strip()}")
 
-        elif any(success_error in error for success_error in success_errors):
-            return result.stdout.strip()
-
-        print(f"gh {' '.join(args)} failed: {result.stderr}", file=sys.stderr)
-        sys.exit(result.returncode)
+        print(
+            f"GitHub rate limit hit; retrying in {retry_delay}s "
+            f"(attempt {attempt}/{RETRY_ATTEMPTS})"
+        )
+        time.sleep(retry_delay)
+        attempt += 1
 
 def create_release(tag: str):
     if run_gh(

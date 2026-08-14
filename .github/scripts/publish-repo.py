@@ -10,7 +10,7 @@ import asyncio
 import aiohttp
 from pathlib import Path
 from check_urls import verificar_url, filtrar_extensiones_validas, MAX_CONEXIONES_SIMULTANEAS
-from gh import create_release, upload_assets, REPO_NAME
+from github_utils import create_release, upload_assets, REPO_NAME
 
 import index_pb2
 from google.protobuf import json_format

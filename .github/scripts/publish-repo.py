@@ -174,8 +174,7 @@ def main():
        badgeLabel="VT",
        signingKey="DE0FDC4BC621BC9F68495CB030F4F23421D3257BA9A6DEBF3295C4076841C77B",
        contact=index_pb2.Contact(
-           website="",
-           discord="",
+           website="https://keiyoushi.github.io",
        ),
        extensionList=index_pb2.ExtensionList(extensions=final_extensions),
     )

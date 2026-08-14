@@ -10,7 +10,7 @@ import asyncio
 import aiohttp
 from pathlib import Path
 from check_urls import verificar_url, filtrar_extensiones_validas, MAX_CONEXIONES_SIMULTANEAS
-from gh import get_release_tag, create_release, upload_assets, REPO_NAME
+from gh import create_release, upload_assets, REPO_NAME
 
 import index_pb2
 from google.protobuf import json_format
@@ -64,6 +64,11 @@ def get_icon_url(module: str, theme: str | None) -> str:
             return f"{ICON_BASE_URL}/{theme_icon}"
 
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
+
+def get_release_tag(batch_index: int, release_count: int) -> str:
+    return (
+        f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
+    )
 
 
 def main():

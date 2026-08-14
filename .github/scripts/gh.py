@@ -11,11 +11,6 @@ RETRY_BASE_DELAY = 60  # Documented minimum wait; doubles per attempt.
 UPLOAD_CHUNK_SIZE = 80
 UPLOAD_CHUNK_INTERVAL = 30
 
-def get_release_tag(batch_index: int, release_count: int) -> str:
-    return (
-        f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
-    )
-
 def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
     delay = RETRY_BASE_DELAY
     for attempt in range(1, RETRY_ATTEMPTS + 1):

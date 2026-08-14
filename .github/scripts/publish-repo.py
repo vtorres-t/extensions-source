@@ -16,24 +16,16 @@ from google.protobuf import json_format
 
 # --- Configuración de directorios de artefactos ---
 ARTIFACTS_DIR = Path.home() / "apk-artifacts"
-REPO_DIR = Path.cwd()
-REPO_APK_DIR = REPO_DIR / "apk"
-REPO_JAR_DIR = REPO_DIR / "jar"
-REPO_APK_DIR.mkdir(parents=True, exist_ok=True)
-REPO_JAR_DIR.mkdir(parents=True, exist_ok=True)
 
-APK_BASE_URL = "https://cdn.jsdelivr.net/gh/vtorres-t/ext@repo/apk"
-JAR_BASE_URL = "https://raw.githubusercontent.com/vtorres-t/ext/repo/jar"
+# The checked-out `repo` branch we publish into (the working directory).
+REPO_DIR = Path.cwd()
+
 ICON_BASE_URL = "https://cdn.jsdelivr.net/gh/vtorres-t/extensions-source@main"
 REPO_NAME = "vtorres-t/ext"
 RELEASE_BASE_URL = f"https://github.com/{REPO_NAME}/releases/download"
 ASSET_LIMIT = 495  # Actual limit is 1000 but we upload 2 items per extension.
 RETRY_ATTEMPTS = 4
 RETRY_BASE_DELAY = 60  # Documented minimum wait; doubles per attempt.
-# Uploading continuously trips a secondary rate limit after roughly 450 assets, and
-# that limit clears again within a few minutes. Pace the uploads well under the rate
-# that trips it. Small calls also cap how much completed work gh re-sends on retry,
-# since it re-uploads the whole call.
 UPLOAD_CHUNK_SIZE = 80
 UPLOAD_CHUNK_INTERVAL = 30
 
@@ -41,15 +33,11 @@ to_delete: list[str] = json.loads(sys.argv[1])
 current_sha = sys.argv[2]
 current_sha_short = current_sha[:7]
 
-beta_index_path = REPO_DIR / "index.beta.json"
-if beta_index_path.exists():
-    with beta_index_path.open() as f:
-        remote_release_proto = json_format.Parse(f.read(), index_pb2.Index())
-else:
-    remote_release_proto = index_pb2.Index()
+with REPO_DIR.joinpath("index.json").open() as f:
+    remote_proto = json_format.Parse(f.read(), index_pb2.Index())
 
-remote_release_extensions = {
-    ext.packageName: ext for ext in remote_release_proto.extensionList.extensions
+remote_extensions = {
+    ext.packageName: ext for ext in remote_proto.extensionList.extensions
 }
 
 release_assets_path = REPO_DIR / "release-assets.json"
@@ -68,14 +56,17 @@ updated_release_assets = {
 SOURCE_DIR = Path(__file__).resolve().parents[2]
 ICON_FILE = "res/mipmap-xhdpi/ic_launcher.png"
 
+
 def get_icon_url(module: str, theme: str | None) -> str:
     module_icon = f"src/{module.replace('.', '/')}/{ICON_FILE}"
     if (SOURCE_DIR / module_icon).exists():
         return f"{ICON_BASE_URL}/{module_icon}"
+
     if theme:
         theme_icon = f"lib-multisrc/{theme}/{ICON_FILE}"
         if (SOURCE_DIR / theme_icon).exists():
             return f"{ICON_BASE_URL}/{theme_icon}"
+
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
 
 def get_release_tag(batch_index: int, release_count: int) -> str:
@@ -83,37 +74,7 @@ def get_release_tag(batch_index: int, release_count: int) -> str:
         f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
     )
 
-def create_index(
-    name: str,
-    badge_label: str,
-    extensions: list[index_pb2.Extension],
-) -> index_pb2.Index:
-    return index_pb2.Index(
-        name=name,
-        badgeLabel=badge_label,
-        signingKey="DE0FDC4BC621BC9F68495CB030F4F23421D3257BA9A6DEBF3295C4076841C77B",
-        contact=index_pb2.Contact(
-            website="",
-            discord="",
-        ),
-        extensionList=index_pb2.ExtensionList(extensions=extensions),
-    )
-
-
-def write_index(filename: str, index: index_pb2.Index):
-    with REPO_DIR.joinpath(f"{filename}.json").open("w", encoding="utf-8") as f:
-        f.write(
-            json_format.MessageToJson(
-                index,
-                always_print_fields_with_no_presence=False,
-                preserving_proto_field_name=True,
-            )
-        )
-
-    with REPO_DIR.joinpath(f"{filename}.pb").open("wb") as f:
-        f.write(gzip.compress(index.SerializeToString(deterministic=True)))
-
-def run_gh(*args: str, success_codes: tuple[int, ...] = ()) -> str:
+def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
     delay = RETRY_BASE_DELAY
     for attempt in range(1, RETRY_ATTEMPTS + 1):
         result = subprocess.run(
@@ -122,22 +83,48 @@ def run_gh(*args: str, success_codes: tuple[int, ...] = ()) -> str:
             text=True,
             check=False,
         )
-        if result.returncode == 0 or result.returncode in success_codes:
+        if result.returncode == 0:
             return result.stdout.strip()
 
-        # Secondary rate limits are explicitly retryable after a wait; everything else
-        # is a real failure, so fail fast. The upload endpoint sends no retry-after
-        # header, so back off from the documented one minute minimum.
+        error = result.stderr.lower()
+
+        # The upload endpoint does not expose retry headers through gh, so use the
+        # documented one-minute minimum with exponential backoff for secondary limits.
         # https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
-        if attempt < RETRY_ATTEMPTS and "secondary rate limit" in result.stderr.lower():
+        if "secondary rate limit" in error:
+            if attempt < RETRY_ATTEMPTS:
+                print(
+                    f"secondary rate limit hit, retrying in {delay}s "
+                    f"(attempt {attempt}/{RETRY_ATTEMPTS})",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+                delay *= 2
+                continue
+
+        elif "api rate limit exceeded" in error and attempt < RETRY_ATTEMPTS:
+            rate_limit = subprocess.run(
+                ["gh", "api", "rate_limit", "--jq", ".resources.core.reset"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            retry_delay = RETRY_BASE_DELAY
+            if rate_limit.returncode == 0:
+                retry_delay = max(
+                    int(rate_limit.stdout.strip()) - int(time.time()) + 10,
+                    RETRY_BASE_DELAY,
+                )
             print(
-                f"secondary rate limit hit, retrying in {delay}s "
+                f"API rate limit hit, retrying in {retry_delay}s "
                 f"(attempt {attempt}/{RETRY_ATTEMPTS})",
                 file=sys.stderr,
             )
-            time.sleep(delay)
-            delay *= 2
+            time.sleep(retry_delay)
             continue
+
+        elif any(success_error in error for success_error in success_errors):
+            return result.stdout.strip()
 
         print(f"gh {' '.join(args)} failed: {result.stderr}", file=sys.stderr)
         sys.exit(result.returncode)
@@ -151,7 +138,7 @@ def create_release(tag: str):
         REPO_NAME,
         "--json",
         "tagName",
-        success_codes=(1,),
+        success_errors=("release not found",),
     ):
         print(f"Release {tag} already exists")
         return
@@ -175,16 +162,42 @@ def publish_release(tag: str):
     print(f"Publishing release {tag}")
     run_gh("release", "edit", tag, "--repo", REPO_NAME, "--draft=false")
 
+def get_release_assets(tag: str) -> dict[str, str]:
+    release = json.loads(
+        run_gh(
+            "release",
+            "view",
+            tag,
+            "--repo",
+            REPO_NAME,
+            "--json",
+            "assets",
+        )
+    )
+    return {
+        asset["name"]: (asset.get("digest") or "").removeprefix("sha256:")
+        for asset in release["assets"]
+    }
 
 def upload_assets(tag: str, files: list[Path]):
     if not files:
         return
-    print(f"Uploading {len(files)} assets to {tag}")
-    for i in range(0, len(files), UPLOAD_CHUNK_SIZE):
-        chunk = files[i : i + UPLOAD_CHUNK_SIZE]
+
+    existing_assets = get_release_assets(tag)
+    files_to_upload = [
+        file
+        for file in files
+        if existing_assets.get(file.name)
+        != hashlib.sha256(file.read_bytes()).hexdigest()
+    ]
+    skipped = len(files) - len(files_to_upload)
+    print(f"Uploading {len(files_to_upload)} assets to {tag}, skipping {skipped}")
+
+    for i in range(0, len(files_to_upload), UPLOAD_CHUNK_SIZE):
+        chunk = files_to_upload[i : i + UPLOAD_CHUNK_SIZE]
         if i:
             time.sleep(UPLOAD_CHUNK_INTERVAL)
-        print(f"  assets {i + 1}-{i + len(chunk)} of {len(files)}")
+        print(f"  assets {i + 1}-{i + len(chunk)} of {len(files_to_upload)}")
         run_gh(
             "release",
             "upload",
@@ -198,7 +211,6 @@ def upload_assets(tag: str, files: list[Path]):
 
 def main():
     new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool]] = []
-    published_files: set[Path] = set()
     extensiones_cargadas = []
 
     for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
@@ -229,55 +241,45 @@ def main():
                 f"{package_name}: no release jar found under {info_file.parent}"
             )
 
-        apk_bytes = apk.read_bytes()
-        jar_bytes = jar.read_bytes()
-        repo_apk = REPO_APK_DIR / apk.name
-        repo_jar = REPO_JAR_DIR / jar.name
-
         assets = {
-            "apk": {
-                "name": apk.name,
-                "sha256": hashlib.sha256(apk_bytes).hexdigest(),
-            },
-            "jar": {
-                "name": jar.name,
-                "sha256": hashlib.sha256(jar_bytes).hexdigest(),
-            },
-        }
-        changed = (
-            package_name not in remote_release_extensions
-            or release_assets.get(package_name) != assets
-        )
+                "apk": {
+                    "name": apk.name,
+                    "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+                },
+                "jar": {
+                    "name": jar.name,
+                    "sha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
+                },
+            }
+            changed = (
+                package_name not in remote_extensions
+                or release_assets.get(package_name) != assets
+            )
 
-        repo_apk.write_bytes(apk_bytes)
-        repo_jar.write_bytes(jar_bytes)
-        published_files.update((repo_apk, repo_jar))
         updated_release_assets[package_name] = assets
 
         ext = index_pb2.Extension(
-            name=info["name"],
-            packageName=package_name,
-            resources=index_pb2.Resources(
-                apkUrl=f"{APK_BASE_URL}/{apk.name}",
-                jarUrl=f"{JAR_BASE_URL}/{jar.name}",
-                iconUrl=get_icon_url(info["module"], info.get("theme")),
-            ),
-            extensionLib=info["extensionLib"],
-            versionCode=info["versionCode"],
-            versionName=info["versionName"],
-            contentWarning=info["contentWarning"],
-            sources=[
-                index_pb2.Source(
-                    id=int(source["id"]),
-                    name=source["name"],
-                    language=source["lang"],
-                    homeUrl=source["baseUrl"],
-                    mirrorUrls=source.get("mirrorUrls", []),
-                )
-                for source in info["sources"]
-            ],
-        )
-        new_extensions.append((ext, apk, jar, changed))
+                name=info["name"],
+                packageName=package_name,
+                resources=index_pb2.Resources(
+                    iconUrl=get_icon_url(info["module"], info.get("theme")),
+                ),
+                extensionLib=info["extensionLib"],
+                versionCode=info["versionCode"],
+                versionName=info["versionName"],
+                contentWarning=info["contentWarning"],
+                sources=[
+                    index_pb2.Source(
+                        id=int(source["id"]),
+                        name=source["name"],
+                        language=source["lang"],
+                        homeUrl=source["baseUrl"],
+                        mirrorUrls=source.get("mirrorUrls", []),
+                    )
+                    for source in info["sources"]
+                ],
+            )
+            new_extensions.append((ext, apk, jar, changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 
@@ -285,84 +287,66 @@ def main():
     release_count = math.ceil(total_extensions / ASSET_LIMIT) if total_extensions else 0
     ext_per_release = math.ceil(total_extensions / release_count) if release_count else 0
 
-    # Drop stale repo assets for modules that were deleted or rebuilt. Current artifacts are retained;
-    # release upload checks use the checksum manifest above and do not depend on these repo copies.
-    for module in to_delete:
-        for file in REPO_APK_DIR.glob(f"tachiyomi-{module}-v*.*.*.apk"):
-            if file not in published_files:
-                print(f"removing {file.name}")
-                file.unlink(missing_ok=True)
-        for file in REPO_JAR_DIR.glob(f"tachiyomi-{module}-v*.*.*.jar"):
-            if file not in published_files:
-                print(f"removing {file.name}")
-                file.unlink(missing_ok=True)
+    for i, (ext, apk, jar, changed) in enumerate(new_extensions):
+       if changed:
+           tag = get_release_tag(i // ext_per_release)
+           ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
+           ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
+       else:
+           old_resources = remote_extensions[ext.packageName].resources
+           ext.resources.apkUrl = old_resources.apkUrl
+           ext.resources.jarUrl = old_resources.jarUrl
 
     # Merge with the already-published index, dropping the deleted/rebuilt modules.
-    with REPO_DIR.joinpath("index.json").open() as f:
-        remote_proto = json_format.Parse(f.read(), index_pb2.Index())
+    final_extensions = []
+    final_extensions.extend(
+       ext
+       for ext in remote_proto.extensionList.extensions
+       if not any(ext.packageName.endswith(f".{module}") for module in to_delete)
+    )
+    final_extensions.extend(ext for ext, _, _, _ in new_extensions)
+    final_extensions.sort(key=lambda ext: ext.packageName)
 
-    all_extensions = [
-        ext
-        for ext in remote_proto.extensionList.extensions
-        if not any(ext.packageName.endswith(f".{module}") for module in to_delete)
-    ]
-    all_extensions.extend([i[0] for i in new_extensions])
-    all_extensions.sort(key=lambda ext: ext.packageName)
+    index = index_pb2.Index(
+       name="Keiyoushi-vt",
+       badgeLabel="VT",
+       signingKey="DE0FDC4BC621BC9F68495CB030F4F23421D3257BA9A6DEBF3295C4076841C77B",
+       contact=index_pb2.Contact(
+           website="",
+           discord="",
+       ),
+       extensionList=index_pb2.ExtensionList(extensions=final_extensions),
+    )
 
-    new_release_extensions = {}
-    for i, (ext, apk, jar, changed) in enumerate(new_extensions):
-        release_ext = index_pb2.Extension()
-        release_ext.CopyFrom(ext)
+    with REPO_DIR.joinpath("index.json").open("w", encoding="utf-8") as f:
+       f.write(
+           json_format.MessageToJson(
+               index,
+               always_print_fields_with_no_presence=False,
+               preserving_proto_field_name=True,
+           )
+       )
 
-        if changed:
-            tag = get_release_tag(i // ext_per_release, release_count)
-            release_ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
-            release_ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
-        else:
-            old_resources = remote_release_extensions[ext.packageName].resources
-            release_ext.resources.apkUrl = old_resources.apkUrl
-            release_ext.resources.jarUrl = old_resources.jarUrl
-
-        new_release_extensions[ext.packageName] = release_ext
-
-    all_release_extensions = []
-    for ext in all_extensions:
-        if ext.packageName in new_release_extensions:
-            all_release_extensions.append(new_release_extensions[ext.packageName])
-            continue
-
-        if ext.packageName not in remote_release_extensions:
-            raise ValueError(f"{ext.packageName}: no GitHub release asset mapping found")
-
-        release_ext = index_pb2.Extension()
-        release_ext.CopyFrom(ext)
-        old_resources = remote_release_extensions[ext.packageName].resources
-        release_ext.resources.apkUrl = old_resources.apkUrl
-        release_ext.resources.jarUrl = old_resources.jarUrl
-        all_release_extensions.append(release_ext)
-
-    index = create_index("Keiyoushi-vt", "VT", all_extensions)
-    release_index = create_index("Keiyoushi-vt (Beta)", "VT β", all_release_extensions)
-    write_index("index", index)
-    write_index("index.beta", release_index)
+    with REPO_DIR.joinpath("index.pb").open("wb") as f:
+       f.write(gzip.compress(index.SerializeToString(deterministic=True), mtime=0))
 
     with release_assets_path.open("w", encoding="utf-8") as f:
-        json.dump(updated_release_assets, f, indent=2, sort_keys=True)
-        f.write("\n")
+       json.dump(updated_release_assets, f, indent=2, sort_keys=True)
+       f.write("\n")
 
     with REPO_DIR.joinpath("index.html").open("w", encoding="utf-8") as f:
-        f.write(
-            '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<title>apks</title>\n</head>\n<body>\n<pre>\n'
-        )
-        for ext in all_extensions:
-            apk_escaped = html.escape(ext.resources.apkUrl)
-            name_escaped = html.escape(f"Tachiyomi: {ext.name}")
-            f.write(f'<a href="{apk_escaped}">{name_escaped}</a>\n')
-        f.write("</pre>\n</body>\n</html>\n")
+       f.write(
+           '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<title>apks</title>\n</head>\n<body>\n<pre>\n'
+       )
+       for ext in final_extensions:
+           apk_escaped = html.escape(ext.resources.apkUrl)
+           name_escaped = html.escape(f"Tachiyomi: {ext.name}")
+           f.write(f'<a href="{apk_escaped}">{name_escaped}</a>\n')
+       f.write("</pre>\n</body>\n</html>\n")
 
     # --- Upload assets as release ---
     if not new_extensions:
-        sys.exit(0)
+       sys.exit(0)
 
 
     for i in range(0, total_extensions, ext_per_release):

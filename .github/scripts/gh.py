@@ -91,7 +91,7 @@ def create_release(tag: str):
         "--title",
         f"Repository Update {tag}",
         "--notes",
-        f"Automated update from keiyoushi/extensions-source@{current_sha}",
+        f"Automated update from vtorres-t/extensions-source",
     )
 
 

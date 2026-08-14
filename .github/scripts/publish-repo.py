@@ -242,44 +242,44 @@ def main():
             )
 
         assets = {
-                "apk": {
-                    "name": apk.name,
-                    "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-                },
-                "jar": {
-                    "name": jar.name,
-                    "sha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
-                },
-            }
-            changed = (
-                package_name not in remote_extensions
-                or release_assets.get(package_name) != assets
-            )
+            "apk": {
+                "name": apk.name,
+                "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+            },
+            "jar": {
+                "name": jar.name,
+                "sha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
+            },
+        }
+        changed = (
+            package_name not in remote_extensions
+            or release_assets.get(package_name) != assets
+        )
 
         updated_release_assets[package_name] = assets
 
         ext = index_pb2.Extension(
-                name=info["name"],
-                packageName=package_name,
-                resources=index_pb2.Resources(
-                    iconUrl=get_icon_url(info["module"], info.get("theme")),
-                ),
-                extensionLib=info["extensionLib"],
-                versionCode=info["versionCode"],
-                versionName=info["versionName"],
-                contentWarning=info["contentWarning"],
-                sources=[
-                    index_pb2.Source(
-                        id=int(source["id"]),
-                        name=source["name"],
-                        language=source["lang"],
-                        homeUrl=source["baseUrl"],
-                        mirrorUrls=source.get("mirrorUrls", []),
-                    )
-                    for source in info["sources"]
-                ],
-            )
-            new_extensions.append((ext, apk, jar, changed))
+            name=info["name"],
+            packageName=package_name,
+            resources=index_pb2.Resources(
+                iconUrl=get_icon_url(info["module"], info.get("theme")),
+            ),
+            extensionLib=info["extensionLib"],
+            versionCode=info["versionCode"],
+            versionName=info["versionName"],
+            contentWarning=info["contentWarning"],
+            sources=[
+                index_pb2.Source(
+                    id=int(source["id"]),
+                    name=source["name"],
+                    language=source["lang"],
+                    homeUrl=source["baseUrl"],
+                    mirrorUrls=source.get("mirrorUrls", []),
+                )
+                for source in info["sources"]
+            ],
+        )
+        new_extensions.append((ext, apk, jar, changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 

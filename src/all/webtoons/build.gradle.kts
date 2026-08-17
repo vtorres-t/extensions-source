@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Webtoons.com"
-    versionCode = 56
+    versionCode = 57
     contentWarning = ContentWarning.SAFE
     libVersion = "1.4"
 
@@ -27,6 +27,5 @@ keiyoushi {
 }
 
 dependencies {
-    implementation(project(":lib:cookieinterceptor"))
     implementation(project(":lib:textinterceptor"))
 }

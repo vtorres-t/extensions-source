@@ -288,21 +288,21 @@ def create_matrix(modules: list[str]) -> dict:
 
 async def main_async() -> None:
     _, ref = sys.argv
-        modules, deleted, lint_modules = get_module_list(ref)
+    modules, deleted, lint_modules = get_module_list(ref)
 
-        matrix = create_matrix(modules)
+    matrix = create_matrix(modules)
 
-        print(
-            f"Module chunks to build:\n{json.dumps(matrix, indent=2)}\n\n"
-            f"Modules to lint:\n{json.dumps(lint_modules, indent=2)}\n\n"
-            f"Module to delete:\n{json.dumps(deleted, indent=2)}"
-        )
+    print(
+        f"Module chunks to build:\n{json.dumps(matrix, indent=2)}\n\n"
+        f"Modules to lint:\n{json.dumps(lint_modules, indent=2)}\n\n"
+        f"Module to delete:\n{json.dumps(deleted, indent=2)}"
+    )
 
-        if os.getenv("CI") == "true":
-            with open(os.getenv("GITHUB_OUTPUT"), 'a') as out_file:
-                out_file.write(f"matrix={json.dumps(matrix)}\n")
-                out_file.write(f"lint_modules={json.dumps(lint_modules)}\n")
-                out_file.write(f"delete={json.dumps(deleted)}\n")
+    if os.getenv("CI") == "true":
+        with open(os.getenv("GITHUB_OUTPUT"), 'a') as out_file:
+            out_file.write(f"matrix={json.dumps(matrix)}\n")
+            out_file.write(f"lint_modules={json.dumps(lint_modules)}\n")
+            out_file.write(f"delete={json.dumps(deleted)}\n")
 
 if __name__ == '__main__':
     asyncio.run(main_async())

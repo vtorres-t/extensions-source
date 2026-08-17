@@ -65,7 +65,7 @@ def get_icon_url(module: str, theme: str | None) -> str:
 
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
 
-def get_release_tag(batch_index: int, release_count: int) -> str:
+def get_release_tag(batch_index: int) -> str:
     return (
         f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
     )

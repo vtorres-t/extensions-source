@@ -65,7 +65,7 @@ def get_icon_url(module: str, theme: str | None) -> str:
 
     return f"{ICON_BASE_URL}/core/src/main/{ICON_FILE}"
 
-def get_release_tag(batch_index: int) -> str:
+def get_release_tag(batch_index: int, release_count: int) -> str:
     return (
         f"{current_sha_short}-{batch_index}" if release_count > 1 else current_sha_short
     )
@@ -164,7 +164,7 @@ def main():
     changed_index = 0
     for ext, apk, jar, apk_changed, jar_changed in new_extensions:
         if apk_changed or jar_changed:
-            tag = get_release_tag(changed_index // ext_per_release)
+            tag = get_release_tag(changed_index // ext_per_release, release_count)
             old_resources = remote_extensions.get(ext.packageName)
             ext.resources.apkUrl = (
                 f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
@@ -235,7 +235,7 @@ def main():
 
     for i in range(0, total_changed_extensions, ext_per_release):
         batch = changed_extensions[i : i + ext_per_release]
-        tag = get_release_tag(i // ext_per_release)
+        tag = get_release_tag(i // ext_per_release, release_count)
         files_to_upload = [
             file
             for _, apk, jar, apk_changed, jar_changed in batch

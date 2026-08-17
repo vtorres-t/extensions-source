@@ -72,7 +72,7 @@ def get_release_tag(batch_index: int, release_count: int) -> str:
 
 
 def main():
-    new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool]] = []
+    new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool, bool]] = []
     extensiones_cargadas = []
 
     for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
@@ -113,9 +113,14 @@ def main():
                 "sha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
             },
         }
-        changed = (
+        old_assets = release_assets.get(package_name, {})
+        apk_changed = (
             package_name not in remote_extensions
-            or release_assets.get(package_name) != assets
+            or old_assets.get("apk") != assets["apk"]
+        )
+        jar_changed = (
+            package_name not in remote_extensions
+            or old_assets.get("jar") != assets["jar"]
         )
 
         updated_release_assets[package_name] = assets
@@ -141,32 +146,50 @@ def main():
                 for source in info["sources"]
             ],
         )
-        new_extensions.append((ext, apk, jar, changed))
+        new_extensions.append((ext, apk, jar, apk_changed, jar_changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 
-    total_extensions = len(new_extensions)
-    release_count = math.ceil(total_extensions / ASSET_LIMIT) if total_extensions else 0
-    ext_per_release = math.ceil(total_extensions / release_count) if release_count else 0
+    changed_extensions = [item for item in new_extensions if item[3] or item[4]]
+    total_changed_extensions = len(changed_extensions)
+    release_count = (
+        math.ceil(total_changed_extensions / ASSET_LIMIT)
+        if total_changed_extensions
+        else 0
+    )
+    ext_per_release = (
+        math.ceil(total_changed_extensions / release_count) if release_count else 0
+    )
 
-    for i, (ext, apk, jar, changed) in enumerate(new_extensions):
-       if changed:
-           tag = get_release_tag(i // ext_per_release, release_count)
-           ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
-           ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
-       else:
-           old_resources = remote_extensions[ext.packageName].resources
-           ext.resources.apkUrl = old_resources.apkUrl
-           ext.resources.jarUrl = old_resources.jarUrl
+    changed_index = 0
+    for ext, apk, jar, apk_changed, jar_changed in new_extensions:
+        if apk_changed or jar_changed:
+            tag = get_release_tag(changed_index // ext_per_release)
+            old_resources = remote_extensions.get(ext.packageName)
+            ext.resources.apkUrl = (
+                f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
+                if apk_changed
+                else old_resources.resources.apkUrl
+            )
+            ext.resources.jarUrl = (
+                f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
+                if jar_changed
+                else old_resources.resources.jarUrl
+            )
+            changed_index += 1
+        else:
+            old_resources = remote_extensions[ext.packageName].resources
+            ext.resources.apkUrl = old_resources.apkUrl
+            ext.resources.jarUrl = old_resources.jarUrl
 
     # Merge with the already-published index, dropping the deleted/rebuilt modules.
     final_extensions = []
     final_extensions.extend(
-       ext
-       for ext in remote_proto.extensionList.extensions
-       if not any(ext.packageName.endswith(f".{module}") for module in to_delete)
+        ext
+        for ext in remote_proto.extensionList.extensions
+        if not any(ext.packageName.endswith(f".{module}") for module in to_delete)
     )
-    final_extensions.extend(ext for ext, _, _, _ in new_extensions)
+    final_extensions.extend(ext for ext, _, _, _, _ in new_extensions)
     final_extensions.sort(key=lambda ext: ext.packageName)
 
     index = index_pb2.Index(
@@ -206,21 +229,19 @@ def main():
        f.write("</pre>\n</body>\n</html>\n")
 
     # --- Upload assets as release ---
-    if not new_extensions:
+    if not changed_extensions:
        sys.exit(0)
 
 
-    for i in range(0, total_extensions, ext_per_release):
-        batch = new_extensions[i : i + ext_per_release]
-        tag = get_release_tag(i // ext_per_release, release_count)
-        files_to_upload = []
-        for ext, apk, jar, changed in batch:
-            if changed:
-                files_to_upload.extend([apk, jar])
-
-        if not files_to_upload:
-            print(f"Nothing changed for {tag}, skipping release")
-            continue
+    for i in range(0, total_changed_extensions, ext_per_release):
+        batch = changed_extensions[i : i + ext_per_release]
+        tag = get_release_tag(i // ext_per_release)
+        files_to_upload = [
+            file
+            for _, apk, jar, apk_changed, jar_changed in batch
+            for file, changed in ((apk, apk_changed), (jar, jar_changed))
+            if changed
+        ]
 
         create_release(tag)
         upload_assets(tag, files_to_upload)

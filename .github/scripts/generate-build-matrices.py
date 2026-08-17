@@ -120,7 +120,7 @@ def resolve_ext(multisrcs: set[str], libs: set[str]) -> set[tuple[str, str]]:
 
     return extensions
 
-def get_module_list(ref: str) -> tuple[list[str], list[str]]:
+def get_module_list(ref: str) -> tuple[list[str], list[str], list[str]]:
     diff_output = run_command(f"git diff --name-status {ref}").splitlines()
 
     changed_files = [
@@ -163,7 +163,7 @@ def get_module_list(ref: str) -> tuple[list[str], list[str]]:
         modules.update(all_modules)
         deleted.update(all_deleted)
 
-        return list(modules), list(deleted)
+        return sorted(modules), sorted(deleted), get_all_lint_modules()
 
     # Resolve libs that depend on the changed libs (recursively)
     libs.update(
@@ -180,7 +180,12 @@ def get_module_list(ref: str) -> tuple[list[str], list[str]]:
     modules.update([f":src:{lang}:{extension}" for lang, extension in extensions])
     deleted.update([f"{lang}.{extension}" for lang, extension in extensions])
 
-    return list(modules), list(deleted)
+    lint_modules = {
+        *(f":lib:{lib}" for lib in libs),
+        *(f":lib-multisrc:{multisrc}" for multisrc in multisrcs),
+    }
+
+    return sorted(modules), sorted(deleted), sorted(lint_modules)
 
 def get_all_modules() -> tuple[list[str], list[str]]:
     modules = []
@@ -259,31 +264,45 @@ async def filtrar_modulos_validos(modules: list[str]) -> list[str]:
 
     return [m for m in modules if m in modulos_activos]
 
-async def main_async() -> None:
-    _, ref, build_type = sys.argv
-    modules, deleted = get_module_list(ref)
+def get_all_lint_modules() -> list[str]:
+    modules = [":core"]
+    modules.extend(
+        f":{directory}:{module.name}"
+        for directory in ("lib", "lib-multisrc")
+        for module in Path(directory).iterdir()
+        if (module / "build.gradle.kts").is_file()
+    )
+    return sorted(modules)
 
-    if modules:
-        print(f"🔍 Evaluando conectividad de las fuentes para {len(modules)} módulos detectados...")
-        modules = await filtrar_modulos_validos(modules)
 
-    chunked = {
+def create_matrix(modules: list[str]) -> dict:
+    return {
         "chunk": [
-            {"number": i + 1, "modules": list(batch)}
-            for i, batch in
-            enumerate(itertools.batched(
-                map(lambda x: f"{x}:assemble{build_type}", modules),
+            {"number": i + 1, "modules": chunk}
+            for i, chunk in enumerate(itertools.batched(
+                modules,
                 int(os.getenv("CI_CHUNK_SIZE", 65))
             ))
         ]
     }
 
-    print(f"Module chunks to build:\n{json.dumps(chunked, indent=2)}\n\nModule to delete:\n{json.dumps(deleted, indent=2)}")
+async def main_async() -> None:
+    _, ref = sys.argv
+        modules, deleted, lint_modules = get_module_list(ref)
 
-    if os.getenv("CI") == "true":
-        with open(os.getenv("GITHUB_OUTPUT"), 'a') as out_file:
-            out_file.write(f"matrix={json.dumps(chunked)}\n")
-            out_file.write(f"delete={json.dumps(deleted)}\n")
+        matrix = create_matrix(modules)
+
+        print(
+            f"Module chunks to build:\n{json.dumps(matrix, indent=2)}\n\n"
+            f"Modules to lint:\n{json.dumps(lint_modules, indent=2)}\n\n"
+            f"Module to delete:\n{json.dumps(deleted, indent=2)}"
+        )
+
+        if os.getenv("CI") == "true":
+            with open(os.getenv("GITHUB_OUTPUT"), 'a') as out_file:
+                out_file.write(f"matrix={json.dumps(matrix)}\n")
+                out_file.write(f"lint_modules={json.dumps(lint_modules)}\n")
+                out_file.write(f"delete={json.dumps(deleted)}\n")
 
 if __name__ == '__main__':
     asyncio.run(main_async())

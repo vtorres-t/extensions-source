@@ -5,14 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "BatCave"
-    versionCode = 9
-    contentWarning = ContentWarning.SAFE
+    name = "LeerManhwas"
+    versionCode = 1
+    contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
 
     source {
-        lang = "en"
-        baseUrl = "https://batcave.biz"
+        baseUrl = "https://leermanhwas.com"
+        lang = "es"
     }
 
     deeplink {

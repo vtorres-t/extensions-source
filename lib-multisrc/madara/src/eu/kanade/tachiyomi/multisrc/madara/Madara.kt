@@ -1,57 +1,30 @@
 package eu.kanade.tachiyomi.multisrc.madara
 
-import android.util.Base64
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.network.POST
-import eu.kanade.tachiyomi.network.asObservableSuccess
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
-import eu.kanade.tachiyomi.source.model.Page
-import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.asJsoup
-import keiyoushi.lib.cryptoaes.CryptoAES
-import keiyoushi.lib.i18n.Intl
-import keiyoushi.utils.decodeHex
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import keiyoushi.network.post
+import keiyoushi.utils.firstInstanceOrNull
+import kotlinx.serialization.json.JsonElement
 import okhttp3.FormBody
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.Request
-import okhttp3.Response
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
-import rx.Observable
-import uy.kohesive.injekt.injectLazy
-import java.text.ParseException
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
-abstract class Madara : HttpSource() {
+private const val PAGE_SIZE = 25
 
-    protected open val dateFormat: SimpleDateFormat = SimpleDateFormat("MMMM dd, yyyy", Locale.US)
-
-    override val supportsLatest = true
-
-    override fun headersBuilder() = super.headersBuilder()
-        .add("Referer", "$baseUrl/")
-
-    protected val xhrHeaders by lazy {
-        headersBuilder()
-            .set("X-Requested-With", "XMLHttpRequest")
-            .build()
+abstract class Madara : MadaraBase() {
+    private enum class BrowseMode {
+        Popular,
+        Latest,
+        Search,
     }
 
-    protected open val json: Json by injectLazy()
+    override suspend fun getPopularManga(page: Int) = ajaxList(page, BrowseMode.Popular)
+    override suspend fun getLatestUpdates(page: Int) = ajaxList(page, BrowseMode.Latest)
+    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList) = ajaxList(page, BrowseMode.Search, query, filters)
+    override fun getHomeUrl() = "$baseUrl/$mangaSubString/?m_orderby=views"
 
+<<<<<<< HEAD
     protected val intl = Intl(
         language = lang,
         baseLanguage = "en",
@@ -212,574 +185,111 @@ abstract class Madara : HttpSource() {
                     manga.selectFirst(".widget-thumbnail img")?.let {
                         thumbnail_url = processThumbnail(imageFromElement(it), true)
                     }
+=======
+    override fun getFilterList(data: JsonElement?): FilterList {
+        val genres = data.genreRoutes()
+        return FilterList(
+            buildList {
+                add(TextFilter(intl["author_filter_title"], "wp-manga-author"))
+                add(TextFilter(intl["artist_filter_title"], "wp-manga-artist"))
+                add(TextFilter(intl["year_filter_title"], "wp-manga-release"))
+                add(StatusFilter(intl["status_filter_title"], statusFilterOptions))
+                add(SortFilter(intl["order_by_filter_title"], orderByFilterOptions))
+                add(AdultFilter(intl["adult_content_filter_title"], adultFilterOptions))
+                if (genres.isNotEmpty()) {
+                    add(Filter.Separator())
+                    add(Filter.Header(intl["genre_filter_header"]))
+                    add(GenreConditionFilter(intl["genre_condition_filter_title"], genreConditionFilterOptions))
+                    add(GenreList(intl["genre_filter_title"], genres))
+>>>>>>> upstream/main
                 }
-            }
+            },
+        )
     }
 
-    // Latest Updates
-
-    protected open fun latestUpdatesSelector() = popularMangaSelector()
-
-    protected open fun latestUpdatesFromElement(element: Element): SManga {
-        // Even if it's different from the popular manga's list, the relevant classes are the same
-        return popularMangaFromElement(element)
-    }
-
-    override fun latestUpdatesRequest(page: Int): Request = if (useLoadMoreRequest()) {
-        loadMoreRequest(page, popular = false)
-    } else {
-        GET("$baseUrl/$mangaSubString/${searchPage(page)}?m_orderby=latest", headers)
-    }
-
-    protected open fun latestUpdatesNextPageSelector(): String? = popularMangaNextPageSelector()
-
-    override fun latestUpdatesParse(response: Response): MangasPage {
-        val mp = popularMangaParse(response)
-        val mangas = mp.mangas.distinctBy { it.url }
-        return MangasPage(mangas, mp.hasNextPage)
-    }
-
-    // load more
-    protected open fun loadMoreRequest(page: Int, popular: Boolean): Request {
-        val formBody = FormBody.Builder().apply {
+    private suspend fun ajaxList(page: Int, mode: BrowseMode, query: String = "", filters: FilterList = FilterList()): MangasPage {
+        val body = FormBody.Builder().apply {
             add("action", "madara_load_more")
             add("page", (page - 1).toString())
             add("template", "madara-core/content/content-archive")
-            add("vars[orderby]", "meta_value_num")
-            add("vars[paged]", "1")
-
-            if (filterNonMangaItems) {
-                add("vars[meta_query][0][key]", "_wp_manga_chapter_type")
-                add("vars[meta_query][0][value]", "manga")
-            }
-
-            add("vars[post_type]", "wp-manga")
-            add("vars[post_status]", "publish")
-            add("vars[meta_key]", if (popular) "_wp_manga_views" else "_latest_update")
-            add("vars[order]", "desc")
-            add("vars[sidebar]", "right")
-            add("vars[manga_archives_item_layout]", "big_thumbnail")
-        }.build()
-
-        return POST("$baseUrl/wp-admin/admin-ajax.php", xhrHeaders, formBody)
-    }
-
-    // Search Manga
-
-    override fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> {
-        if (query.startsWith("https://")) {
-            val url = query.toHttpUrl()
-            if (url.host != baseUrl.toHttpUrl().host) {
-                throw Exception("Unsupported url")
-            }
-            if (url.pathSegments.size < 2) {
-                throw Exception("Unsupported url")
-            }
-            val slug = url.pathSegments[1]
-            return fetchSearchManga(page, "$URL_SEARCH_PREFIX$slug", filters)
-        }
-        if (query.startsWith(URL_SEARCH_PREFIX)) {
-            val mangaUrl = baseUrl.toHttpUrl().newBuilder().apply {
-                addPathSegment(mangaSubString)
-                addPathSegment(query.substringAfter(URL_SEARCH_PREFIX))
-                addPathSegment("") // add trailing slash
-            }.build()
-            return client.newCall(GET(mangaUrl, headers))
-                .asObservableSuccess().map { response ->
-                    val manga = mangaDetailsParse(response).apply {
-                        setUrlWithoutDomain(mangaUrl.toString())
-                        initialized = true
-                    }
-
-                    MangasPage(listOf(manga), false)
-                }
-        }
-
-        return super.fetchSearchManga(page, query, filters)
-    }
-
-    protected open fun searchPage(page: Int): String = if (page == 1) {
-        ""
-    } else {
-        "page/$page/"
-    }
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request = if (useLoadMoreRequest()) {
-        searchLoadMoreRequest(page, query, filters)
-    } else {
-        searchRequest(page, query, filters)
-    }
-
-    protected open fun searchRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$baseUrl/${searchPage(page)}".toHttpUrl().newBuilder()
-        url.addQueryParameter("s", query)
-        url.addQueryParameter("post_type", "wp-manga")
-        filters.forEach { filter ->
-            when (filter) {
-                is AuthorFilter -> {
-                    if (filter.state.isNotBlank()) {
-                        url.addQueryParameter("author", filter.state)
-                    }
-                }
-
-                is ArtistFilter -> {
-                    if (filter.state.isNotBlank()) {
-                        url.addQueryParameter("artist", filter.state)
-                    }
-                }
-
-                is YearFilter -> {
-                    if (filter.state.isNotBlank()) {
-                        url.addQueryParameter("release", filter.state)
-                    }
-                }
-
-                is StatusFilter -> {
-                    filter.state.forEach {
-                        if (it.state) {
-                            url.addQueryParameter("status[]", it.id)
-                        }
-                    }
-                }
-
-                is OrderByFilter -> {
-                    if (filter.state != 0) {
-                        url.addQueryParameter("m_orderby", filter.toUriPart())
-                    }
-                }
-
-                is AdultContentFilter -> {
-                    url.addQueryParameter("adult", filter.toUriPart())
-                }
-
-                is GenreConditionFilter -> {
-                    url.addQueryParameter("op", filter.toUriPart())
-                }
-
-                is GenreList -> {
-                    filter.state
-                        .filter { it.state }
-                        .let { list ->
-                            if (list.isNotEmpty()) {
-                                list.forEach { genre -> url.addQueryParameter("genre[]", genre.id) }
-                            }
-                        }
-                }
-
-                else -> {}
-            }
-        }
-        return GET(url.build(), headers)
-    }
-
-    protected open fun searchLoadMoreRequest(page: Int, query: String, filters: FilterList): Request {
-        val formBody = FormBody.Builder().apply {
-            add("action", "madara_load_more")
-            add("page", (page - 1).toString())
-            add("template", "madara-core/content/content-search")
             add("vars[paged]", "1")
             add("vars[template]", "archive")
-            add("vars[sidebar]", "right")
+            add("vars[posts_per_page]", PAGE_SIZE.toString())
             add("vars[post_type]", "wp-manga")
             add("vars[post_status]", "publish")
             add("vars[manga_archives_item_layout]", "big_thumbnail")
-
             if (filterNonMangaItems) {
                 add("vars[meta_query][0][key]", "_wp_manga_chapter_type")
                 add("vars[meta_query][0][value]", "manga")
             }
-
-            add("vars[s]", query)
-
-            var metaQueryIdx = if (filterNonMangaItems) 1 else 0
-            var taxQueryIdx = 0
-            val genres = filters.filterIsInstance<GenreList>().firstOrNull()?.state
-                ?.filter { it.state }
-                ?.map { it.id }
-                .orEmpty()
-
-            filters.forEach { filter ->
-                when (filter) {
-                    is AuthorFilter -> {
-                        if (filter.state.isNotBlank()) {
-                            add("vars[tax_query][$taxQueryIdx][taxonomy]", "wp-manga-author")
-                            add("vars[tax_query][$taxQueryIdx][field]", "name")
-                            add("vars[tax_query][$taxQueryIdx][terms]", filter.state)
-
-                            taxQueryIdx++
-                        }
-                    }
-
-                    is ArtistFilter -> {
-                        if (filter.state.isNotBlank()) {
-                            add("vars[tax_query][$taxQueryIdx][taxonomy]", "wp-manga-artist")
-                            add("vars[tax_query][$taxQueryIdx][field]", "name")
-                            add("vars[tax_query][$taxQueryIdx][terms]", filter.state)
-
-                            taxQueryIdx++
-                        }
-                    }
-
-                    is YearFilter -> {
-                        if (filter.state.isNotBlank()) {
-                            add("vars[tax_query][$taxQueryIdx][taxonomy]", "wp-manga-release")
-                            add("vars[tax_query][$taxQueryIdx][field]", "name")
-                            add("vars[tax_query][$taxQueryIdx][terms]", filter.state)
-
-                            taxQueryIdx++
-                        }
-                    }
-
-                    is StatusFilter -> {
-                        val statuses = filter.state
-                            .filter { it.state }
-                            .map { it.id }
-
-                        if (statuses.isNotEmpty()) {
-                            add("vars[meta_query][$metaQueryIdx][key]", "_wp_manga_status")
-
-                            statuses.forEachIndexed { i, slug ->
-                                add("vars[meta_query][$metaQueryIdx][value][$i]", slug)
-                            }
-
-                            metaQueryIdx++
-                        }
-                    }
-
-                    is OrderByFilter -> {
-                        if (filter.state != 0) {
-                            when (filter.toUriPart()) {
-                                "latest" -> {
-                                    add("vars[orderby]", "meta_value_num")
-                                    add("vars[order]", "DESC")
-                                    add("vars[meta_key]", "_latest_update")
-                                }
-
-                                "alphabet" -> {
-                                    add("vars[orderby]", "post_title")
-                                    add("vars[order]", "ASC")
-                                }
-
-                                "rating" -> {
-                                    add("vars[orderby][query_average_reviews]", "DESC")
-                                    add("vars[orderby][query_total_reviews]", "DESC")
-                                }
-
-                                "trending" -> {
-                                    add("vars[orderby]", "meta_value_num")
-                                    add("vars[meta_key]", "_wp_manga_week_views_value")
-                                    add("vars[order]", "DESC")
-                                }
-
-                                "views" -> {
-                                    add("vars[orderby]", "meta_value_num")
-                                    add("vars[meta_key]", "_wp_manga_views")
-                                    add("vars[order]", "DESC")
-                                }
-
-                                else -> {
-                                    add("vars[orderby]", "date")
-                                    add("vars[order]", "DESC")
-                                }
-                            }
-                        }
-                    }
-
-                    is AdultContentFilter -> {
-                        if (filter.state != 0) {
-                            add("vars[meta_query][$metaQueryIdx][key]", "manga_adult_content")
-                            add(
-                                "vars[meta_query][$metaQueryIdx][compare]",
-                                if (filter.state == 1) "not exists" else "exists",
-                            )
-
-                            metaQueryIdx++
-                        }
-                    }
-
-                    is GenreConditionFilter -> {
-                        if (filter.state == 1 && genres.isNotEmpty()) {
-                            add("vars[tax_query][$taxQueryIdx][operation]", "AND")
-                        }
-                    }
-
-                    is GenreList -> {
-                        if (genres.isNotEmpty()) {
-                            add("vars[tax_query][$taxQueryIdx][taxonomy]", "wp-manga-genre")
-                            add("vars[tax_query][$taxQueryIdx][field]", "slug")
-
-                            genres.forEachIndexed { i, slug ->
-                                add("vars[tax_query][$taxQueryIdx][terms][$i]", slug)
-                            }
-
-                            taxQueryIdx++
-                        }
-                    }
-
-                    else -> {}
-                }
+            when (mode) {
+                BrowseMode.Popular -> sort("_wp_manga_views")
+                BrowseMode.Latest -> sort("_latest_update")
+                BrowseMode.Search -> addFilters(query, filters, if (filterNonMangaItems) 1 else 0)
             }
         }.build()
-
-        return POST("$baseUrl/wp-admin/admin-ajax.php", xhrHeaders, formBody)
+        val mangas = parseArchive(client.post("$baseUrl/wp-admin/admin-ajax.php", xhrHeaders, body).asJsoup())
+        return MangasPage(mangas, mangas.size == PAGE_SIZE)
     }
 
-    protected open val statusFilterOptions: Map<String, String> =
-        mapOf(
-            intl["status_filter_completed"] to "end",
-            intl["status_filter_ongoing"] to "on-going",
-            intl["status_filter_canceled"] to "canceled",
-            intl["status_filter_on_hold"] to "on-hold",
-        )
-
-    protected open val orderByFilterOptions: Map<String, String> = mapOf(
-        intl["order_by_filter_relevance"] to "",
-        intl["order_by_filter_latest"] to "latest",
-        intl["order_by_filter_az"] to "alphabet",
-        intl["order_by_filter_rating"] to "rating",
-        intl["order_by_filter_trending"] to "trending",
-        intl["order_by_filter_views"] to "views",
-        intl["order_by_filter_new"] to "new-manga",
-    )
-
-    protected open val genreConditionFilterOptions: Map<String, String> =
-        mapOf(
-            intl["genre_condition_filter_or"] to "",
-            intl["genre_condition_filter_and"] to "1",
-        )
-
-    protected open val adultContentFilterOptions: Map<String, String> =
-        mapOf(
-            intl["adult_content_filter_all"] to "",
-            intl["adult_content_filter_none"] to "0",
-            intl["adult_content_filter_only"] to "1",
-        )
-
-    open class UriPartFilter(displayName: String, private val vals: Array<Pair<String, String>>, state: Int = 0) : Filter.Select<String>(displayName, vals.map { it.first }.toTypedArray(), state) {
-        fun toUriPart() = vals[state].second
+    private fun FormBody.Builder.sort(key: String) {
+        add("vars[orderby]", "meta_value_num")
+        add("vars[meta_key]", key)
+        add("vars[order]", "DESC")
     }
 
-    open class Tag(name: String, val id: String) : Filter.CheckBox(name)
-
-    protected class AuthorFilter(title: String) : Filter.Text(title)
-    protected class ArtistFilter(title: String) : Filter.Text(title)
-    protected class YearFilter(title: String) : Filter.Text(title)
-    protected class StatusFilter(title: String, status: List<Tag>) : Filter.Group<Tag>(title, status)
-
-    protected class OrderByFilter(title: String, options: List<Pair<String, String>>, state: Int = 0) : UriPartFilter(title, options.toTypedArray(), state)
-
-    protected class GenreConditionFilter(title: String, options: List<Pair<String, String>>) :
-        UriPartFilter(
-            title,
-            options.toTypedArray(),
-        )
-
-    protected class AdultContentFilter(title: String, options: List<Pair<String, String>>) :
-        UriPartFilter(
-            title,
-            options.toTypedArray(),
-        )
-
-    protected class GenreList(title: String, genres: List<Genre>) : Filter.Group<GenreCheckBox>(title, genres.map { GenreCheckBox(it.name, it.id) })
-    class GenreCheckBox(name: String, val id: String = name) : Filter.CheckBox(name)
-    class Genre(val name: String, val id: String = name)
-
-    override fun getFilterList(): FilterList {
-        launchIO { fetchGenres() }
-
-        val filters = mutableListOf(
-            AuthorFilter(intl["author_filter_title"]),
-            ArtistFilter(intl["artist_filter_title"]),
-            YearFilter(intl["year_filter_title"]),
-            StatusFilter(
-                title = intl["status_filter_title"],
-                status = statusFilterOptions.map { Tag(it.key, it.value) },
-            ),
-            OrderByFilter(
-                title = intl["order_by_filter_title"],
-                options = orderByFilterOptions.toList(),
-                state = 0,
-            ),
-            AdultContentFilter(
-                title = intl["adult_content_filter_title"],
-                options = adultContentFilterOptions.toList(),
-            ),
-        )
-
-        if (genresList.isNotEmpty()) {
-            filters += listOf(
-                Filter.Separator(),
-                Filter.Header(intl["genre_filter_header"]),
-                GenreConditionFilter(
-                    title = intl["genre_condition_filter_title"],
-                    options = genreConditionFilterOptions.toList(),
-                ),
-                GenreList(
-                    title = intl["genre_filter_title"],
-                    genres = genresList,
-                ),
-            )
-        } else if (fetchGenres) {
-            filters += listOf(
-                Filter.Separator(),
-                Filter.Header(intl["genre_missing_warning"]),
-            )
-        }
-
-        return FilterList(filters)
-    }
-
-    override fun searchMangaParse(response: Response): MangasPage {
-        val document = response.asJsoup()
-
-        val entries = document.select(searchMangaSelector())
-            .map(::searchMangaFromElement)
-        val hasNextPage = searchMangaNextPageSelector()?.let { document.selectFirst(it) } != null
-
-        detectLoadMore(document)
-
-        return MangasPage(entries, hasNextPage)
-    }
-
-    protected open fun searchMangaSelector() = "div.c-tabs-item__content , .manga__item"
-
-    protected open val searchMangaUrlSelector = "div.post-title a"
-
-    protected open fun searchMangaFromElement(element: Element): SManga {
-        val manga = SManga.create()
-
-        with(element) {
-            selectFirst(searchMangaUrlSelector)!!.let {
-                manga.setUrlWithoutDomain(it.attr("abs:href"))
-                manga.title = it.ownText()
-            }
-            selectFirst("img")?.let {
-                manga.thumbnail_url = processThumbnail(imageFromElement(it), true)
-            }
-        }
-
-        return manga
-    }
-
-    protected open fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
-
-    // Manga Details Parse
-
-    protected val completedStatusList: Array<String> = arrayOf(
-        "Completed",
-        "Completo",
-        "Completado",
-        "Concluído",
-        "Concluido",
-        "Finalizado",
-        "Achevé",
-        "Terminé",
-        "Hoàn Thành",
-        "مكتملة",
-        "مكتمل",
-        "已完结",
-        "Tamamlandı",
-        "Đã hoàn thành",
-        "Завершено",
-        "Tamamlanan",
-        "Complété",
-    )
-
-    protected val ongoingStatusList: Array<String> = arrayOf(
-        "OnGoing", "Продолжается", "Updating", "Em Lançamento", "Em lançamento", "Em andamento",
-        "Em Andamento", "En cours", "En Cours", "En cours de publication", "Ativo", "Lançando", "Đang Tiến Hành", "Còn Nữa", "Devam Ediyor",
-        "Devam ediyor", "In Corso", "In Arrivo", "مستمرة", "مستمر", "En Curso", "En curso", "Emision",
-        "Curso", "En marcha", "Publicandose", "Publicándose", "En emision", "连载中", "Em Lançamento", "Devam Ediyo",
-        "Đang làm", "Em postagem", "Devam Eden", "Em progresso", "Em curso", "Atualizações Semanais",
-    )
-
-    protected val hiatusStatusList: Array<String> = arrayOf(
-        "On Hold",
-        "Pausado",
-        "En espera",
-        "Durduruldu",
-        "Beklemede",
-        "Đang chờ",
-        "متوقف",
-        "En Pause",
-        "Заморожено",
-        "En attente",
-    )
-
-    protected val canceledStatusList: Array<String> = arrayOf(
-        "Canceled",
-        "Cancelado",
-        "İptal Edildi",
-        "Güncel",
-        "Đã hủy",
-        "ملغي",
-        "Abandonné",
-        "Заброшено",
-        "Annulé",
-    )
-
-    override fun mangaDetailsParse(response: Response): SManga = mangaDetailsParse(response.asJsoup())
-
-    protected open fun mangaDetailsParse(document: Document): SManga {
-        val manga = SManga.create()
-        with(document) {
-            manga.title = selectFirst(mangaDetailsSelectorTitle)!!.ownText()
-            select(mangaDetailsSelectorAuthor).eachText().filter {
-                it.notUpdating()
-            }.joinToString().takeIf { it.isNotBlank() }?.let {
-                manga.author = it
-            }
-            select(mangaDetailsSelectorArtist).eachText().filter {
-                it.notUpdating()
-            }.joinToString().takeIf { it.isNotBlank() }?.let {
-                manga.artist = it
-            }
-            select(mangaDetailsSelectorDescription).let {
-                if (it.select("p").text().isNotEmpty()) {
-                    manga.description = it.select("p").joinToString(separator = "\n\n") { p ->
-                        p.text().replace("<br>", "\n")
-                    }
-                } else {
-                    manga.description = it.text()
+    private fun FormBody.Builder.addFilters(query: String, filters: FilterList, initialMetaQueryIndex: Int) {
+        if (query.isNotBlank()) add("vars[s]", query)
+        var metaQueryIndex = initialMetaQueryIndex
+        var taxonomyQueryIndex = 0
+        val genres = filters.firstInstanceOrNull<GenreList>()?.state?.filter { it.state }?.map { it.slug }.orEmpty()
+        filters.forEach { filter ->
+            when (filter) {
+                is TextFilter -> if (filter.state.isNotBlank()) {
+                    add("vars[tax_query][$taxonomyQueryIndex][taxonomy]", filter.taxonomy)
+                    add("vars[tax_query][$taxonomyQueryIndex][field]", "name")
+                    add("vars[tax_query][$taxonomyQueryIndex][terms]", filter.state)
+                    taxonomyQueryIndex++
                 }
-            }
-            selectFirst(mangaDetailsSelectorThumbnail)?.let {
-                manga.thumbnail_url = processThumbnail(imageFromElement(it))
-            }
-            select(mangaDetailsSelectorStatus).last()?.let {
-                manga.status = with(it.text().filter { ch -> ch.isLetterOrDigit() || ch.isWhitespace() }.trim()) {
-                    when {
-                        containsIn(completedStatusList) -> SManga.COMPLETED
-                        containsIn(ongoingStatusList) -> SManga.ONGOING
-                        containsIn(hiatusStatusList) -> SManga.ON_HIATUS
-                        containsIn(canceledStatusList) -> SManga.CANCELLED
-                        else -> SManga.UNKNOWN
+                is StatusFilter -> filter.state.filter { it.state }.map { it.slug }.takeIf(List<String>::isNotEmpty)?.let { states ->
+                    add("vars[meta_query][$metaQueryIndex][key]", "_wp_manga_status")
+                    add("vars[meta_query][$metaQueryIndex][compare]", "IN")
+                    states.forEachIndexed { i, state -> add("vars[meta_query][$metaQueryIndex][value][$i]", state) }
+                    metaQueryIndex++
+                }
+                is SortFilter -> when (filter.key()) {
+                    "latest" -> sort("_latest_update")
+                    "alphabet" -> {
+                        add("vars[orderby]", "post_title")
+                        add("vars[order]", "ASC")
+                    }
+                    "rating" -> {
+                        add("vars[meta_query][query_average_reviews][key]", "_manga_avarage_reviews")
+                        add("vars[meta_query][query_average_reviews][compare]", "EXISTS")
+                        add("vars[meta_query][query_total_reviews][key]", "_manga_total_votes")
+                        add("vars[meta_query][query_total_reviews][compare]", "EXISTS")
+                        add("vars[orderby][query_average_reviews]", "DESC")
+                        add("vars[orderby][query_total_reviews]", "DESC")
+                    }
+                    "trending" -> sort("_wp_manga_week_views_value")
+                    "views" -> sort("_wp_manga_views")
+                    "new-manga" -> {
+                        add("vars[orderby]", "date")
+                        add("vars[order]", "DESC")
                     }
                 }
-            }
-            val genres = select(mangaDetailsSelectorGenre)
-                .mapTo(ArrayList()) { element -> element.text() }
-
-            if (mangaDetailsSelectorTag.isNotEmpty()) {
-                select(mangaDetailsSelectorTag).forEach { element ->
-                    if (
-                        element.text().length <= 25 &&
-                        element.text().contains("read", true).not() &&
-                        element.text().contains(name, true).not() &&
-                        element.text().contains(name.replace(" ", ""), true).not() &&
-                        element.text().contains(manga.title, true).not() &&
-                        element.text().contains(altName, true).not()
-                    ) {
-                        genres.add(element.text())
-                    }
+                is AdultFilter -> if (filter.state != 0) {
+                    add("vars[meta_query][$metaQueryIndex][key]", "manga_adult_content")
+                    add("vars[meta_query][$metaQueryIndex][compare]", if (filter.state == 1) "not exists" else "exists")
+                    metaQueryIndex++
                 }
-            }
-
-            // add manga/manhwa/manhua thinggy to genre
-            document.selectFirst(seriesTypeSelector)?.ownText()?.let {
-                if (it.isEmpty().not() && it.notUpdating() && it != "-") {
-                    genres.add(it)
+                is GenreConditionFilter -> if (filter.state == 1 && genres.isNotEmpty()) add("vars[tax_query][$taxonomyQueryIndex][operation]", "AND")
+                is GenreList -> if (genres.isNotEmpty()) {
+                    add("vars[tax_query][$taxonomyQueryIndex][taxonomy]", "wp-manga-genre")
+                    add("vars[tax_query][$taxonomyQueryIndex][field]", "slug")
+                    genres.forEachIndexed { i, slug -> add("vars[tax_query][$taxonomyQueryIndex][terms][$i]", slug) }
                 }
+<<<<<<< HEAD
             }
 
             manga.genre = genres.distinctBy(String::lowercase).joinToString()
@@ -1159,10 +669,14 @@ abstract class Madara : HttpSource() {
             } finally {
                 fetchGenresAttempts++
                 isFetchingGenres = false
+=======
+                else -> Unit
+>>>>>>> upstream/main
             }
         }
     }
 
+<<<<<<< HEAD
     /**
      * The request to the search page (or another one) that have the genres list.
      */
@@ -1218,3 +732,25 @@ class WordSet(private vararg val words: String) {
     fun endsWith(dateString: String): Boolean = words.any { dateString.endsWith(it, ignoreCase = true) }
     fun startsOrEndsWith(dateString: String): Boolean = words.any { dateString.startsWith(it, ignoreCase = true) || dateString.endsWith(it, ignoreCase = true) }
 }
+=======
+    override suspend fun fetchRelatedMangaList(id: String, genres: List<GenreRoute>): List<SManga> {
+        val body = FormBody.Builder().apply {
+            add("action", "madara_load_more")
+            add("page", "0")
+            add("template", "madara-core/content/content-archive")
+            add("vars[posts_per_page]", PAGE_SIZE.toString())
+            add("vars[template]", "archive")
+            add("vars[post_type]", "wp-manga")
+            add("vars[post_status]", "publish")
+            add("vars[orderby]", "rand")
+            add("vars[sidebar]", "right")
+            add("vars[manga_archives_item_layout]", "big_thumbnail")
+            add("vars[post__not_in][0]", id)
+            add("vars[tax_query][0][taxonomy]", "wp-manga-genre")
+            add("vars[tax_query][0][field]", "slug")
+            genres.forEachIndexed { i, genre -> add("vars[tax_query][0][terms][$i]", genre.slug) }
+        }.build()
+        return parseArchive(client.post("$baseUrl/wp-admin/admin-ajax.php", xhrHeaders, body).asJsoup())
+    }
+}
+>>>>>>> upstream/main

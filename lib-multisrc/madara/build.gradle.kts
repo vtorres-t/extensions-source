@@ -3,14 +3,13 @@ plugins {
 }
 
 dependencies {
-    api(project(":lib:cryptoaes"))
     api(project(":lib:i18n"))
     compileOnly("org.jspecify:jspecify:1.0.0")
 }
 
 keiyoushi {
-    baseVersionCode = 52
-    libVersion = "1.4"
+    baseVersionCode = 53
+    libVersion = "1.6"
 
     deeplink {
         path("/.*/..*")

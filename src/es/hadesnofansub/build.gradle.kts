@@ -8,8 +8,8 @@ keiyoushi {
     name = "Hades no Fansub"
     versionCode = 5
     contentWarning = ContentWarning.MIXED
-    libVersion = "1.4"
-    theme = "madaralegacy"
+    libVersion = "1.6"
+    theme = "madara"
 
     source {
         lang = "es"

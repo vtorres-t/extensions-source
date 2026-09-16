@@ -55,7 +55,7 @@ abstract class Madara : HttpSource() {
     protected val intl = Intl(
         language = lang,
         baseLanguage = "en",
-        availableLanguages = setOf("en", "pt-BR", "es"),
+        availableLanguages = setOf("en", "es"),
         classLoader = this::class.java.classLoader!!,
     )
 

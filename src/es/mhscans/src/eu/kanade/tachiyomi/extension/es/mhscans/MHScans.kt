@@ -47,6 +47,17 @@ abstract class MHScans :
         return "$baseSelector:not(.premium)"
     }
 
+    override fun chapterFromElement(element: org.jsoup.nodes.Element): eu.kanade.tachiyomi.source.model.SChapter {
+        val chapter = super.chapterFromElement(element)
+
+        val regex = Regex("\\s*(?:-\\s*)?\\[?AL DIA(?: CON LA RAW)?\\]?\\s*|\\s*(?:-\\s*)?\\[?Promo Especial\\]?\\s*|\\s*(?:-\\s*)?\\[?PACK DE CAPÍTULOS\\]?\\s*|\\s*(?:-\\s*)?\\[?PACK\\]?\\s*|\\s*(?:-\\s*)?\\[?SUPER PACK\\]?\\s*|\\s*(?:-\\s*)?\\[?Version\\]?\\s*|\\s*(?:-\\s*)?\\[?TEMPORAL\\]?\\s*", RegexOption.IGNORE_CASE)
+
+        chapter.name = chapter.name.replace(regex, "").trim().replace("\\s+".toRegex(), " ")
+
+        return chapter
+    }
+
+
     override fun pageListParse(document: Document): List<Page> {
         super.pageListParse(document).also {
             if (it.isNotEmpty()) return it

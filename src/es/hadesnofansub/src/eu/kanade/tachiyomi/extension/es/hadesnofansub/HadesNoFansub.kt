@@ -2,6 +2,9 @@ package eu.kanade.tachiyomi.extension.es.hadesnofansub
 
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import keiyoushi.annotation.Source
+import eu.kanade.tachiyomi.source.model.SChapter
+import org.jsoup.nodes.Element
+import java.text.ParseException
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -16,21 +19,26 @@ abstract class HadesNoFansub : Madara() {
 
     override val mangaDetailsSelectorTag = "div.tags-content a.notUsed" // Site uses this for the scanlator
 
-    override fun parseChapterDate(element: Element): Long {
-        val dateElement = element.selectFirst("span.chapter-release-date span.timediff i")
-            ?: element.selectFirst("span.chapter-release-date")
+    override fun chapterFromElement(element: Element): SChapter {
+        val chapter = super.chapterFromElement(element)
 
-        return dateElement?.let {
-            val dateText = it.text().trim()
-            if (dateText.isNotBlank()) {
-                try {
-                    parseChapterDate(dateText)
-                } catch (e: ParseException) {
-                    0L
-                }
-            } else {
-                0L
-            }
-        } ?: super.parseChapterDate(element)
+        val dateElement = element.selectFirst("span.chapter-release-date span.timediff i")
+        if (dateElement != null) {
+            val dateText = dateElement.text().trim()
+            chapter.date_upload = parsearFechaManual(dateText)
+        } else {
+            chapter.date_upload = parsearFechaManual(element.selectFirst("span.chapter-release-date")?.text())
+        }
+
+        return chapter
+    }
+
+    private fun parsearFechaManual(date: String?): Long {
+        if (date.isNullOrBlank()) return 0L
+        return try {
+            dateFormat.parse(date)?.time ?: 0L
+        } catch (e: ParseException) {
+            0L
+        }
     }
 }

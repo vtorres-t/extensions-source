@@ -62,7 +62,7 @@ abstract class MHScans :
     }
 
     private fun limpiarTextoCapitulo(name: String): String {
-        val regex = Regex("""\s*(?:-\s*)?\[?(?:AL DIA(?: CON LA RAW)?|Promo Especial|PACK DE CAPÍTULOS|PACK|SUPER PACK|Version|TEMPORAL)\]?\s*""", RegexOption.IGNORE_CASE)
+        val regex = Regex("""\s*(?:-\s*)?\[?(?:AL D[IÍ]A(?: CON LA RAW)?|Promo Especial|PACK DE CAP[IÍ]TULOS|PACK|Marat[oó]n de Caps|SUPER PACK|AVISO IMPORTANTE (No es cap[ií]tulo como tal)|Versi[oó]n pocha|Versi[oó]n con calidad|Versi[oó]n Definitiva|TEMPORAL|Sin Censura|ESTRENO)\]?\s*""", RegexOption.IGNORE_CASE)
         return name.replace(regex, "").trim().replace(Regex("\\s+"), " ")
     }
 

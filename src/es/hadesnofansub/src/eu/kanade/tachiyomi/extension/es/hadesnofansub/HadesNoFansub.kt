@@ -15,4 +15,22 @@ abstract class HadesNoFansub : Madara() {
     override val mangaDetailsSelectorStatus = "div.summary_content > div.post-content div.post-content_item:has(div.summary-heading:contains(Status)) div.summary-content"
 
     override val mangaDetailsSelectorTag = "div.tags-content a.notUsed" // Site uses this for the scanlator
+
+    override fun parseChapterDate(element: Element): Long {
+        val dateElement = element.selectFirst("span.chapter-release-date span.timediff i")
+            ?: element.selectFirst("span.chapter-release-date")
+
+        return dateElement?.let {
+            val dateText = it.text().trim()
+            if (dateText.isNotBlank()) {
+                try {
+                    parseChapterDate(dateText)
+                } catch (e: ParseException) {
+                    0L
+                }
+            } else {
+                0L
+            }
+        } ?: super.parseChapterDate(element)
+    }
 }

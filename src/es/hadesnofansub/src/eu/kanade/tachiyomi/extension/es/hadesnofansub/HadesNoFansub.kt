@@ -4,7 +4,6 @@ import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.source.model.SChapter
 import keiyoushi.annotation.Source
 import org.jsoup.nodes.Element
-import java.text.ParseException
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -25,21 +24,12 @@ abstract class HadesNoFansub : Madara() {
         val dateElement = element.selectFirst("span.chapter-release-date span.timediff i")
         if (dateElement != null) {
             val dateText = dateElement.text().trim()
-            chapter.date_upload = parsearFechaManual(dateText)
+            chapter.date_upload = parseChapterDate(dateText)
         } else {
             val backupText = element.selectFirst("span.chapter-release-date")?.text()
-            chapter.date_upload = parsearFechaManual(backupText)
+            chapter.date_upload = parseChapterDate(backupText)
         }
 
         return chapter
-    }
-
-    private fun parsearFechaManual(date: String?): Long {
-        if (date.isNullOrBlank()) return 0L
-        return try {
-            dateFormat.parse(date)?.time ?: 0L
-        } catch (e: ParseException) {
-            0L
-        }
     }
 }

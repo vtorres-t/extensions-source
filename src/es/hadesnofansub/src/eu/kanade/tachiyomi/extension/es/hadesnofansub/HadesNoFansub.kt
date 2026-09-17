@@ -42,5 +42,4 @@ abstract class HadesNoFansub : Madara() {
             0L
         }
     }
-
 }

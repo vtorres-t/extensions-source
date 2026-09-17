@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.extension.es.hadesnofansub
 
 import eu.kanade.tachiyomi.multisrc.madara.Madara
-import keiyoushi.annotation.Source
 import eu.kanade.tachiyomi.source.model.SChapter
+import keiyoushi.annotation.Source
 import org.jsoup.nodes.Element
 import java.text.ParseException
 import java.time.format.DateTimeFormatter

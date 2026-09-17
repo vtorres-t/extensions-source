@@ -47,14 +47,23 @@ abstract class MHScans :
         return "$baseSelector:not(.premium)"
     }
 
+    override fun chapterListParse(response: okhttp3.Response): List<eu.kanade.tachiyomi.source.model.SChapter> {
+        val chapters = super.chapterListParse(response)
+        chapters.forEach { chapter ->
+            chapter.name = limpiarTextoCapitulo(chapter.name)
+        }
+        return chapters
+    }
+
     override fun chapterFromElement(element: org.jsoup.nodes.Element): eu.kanade.tachiyomi.source.model.SChapter {
         val chapter = super.chapterFromElement(element)
-
-        val regex = Regex("\\s*(?:-\\s*)?\\[?AL DIA(?: CON LA RAW)?\\]?\\s*|\\s*(?:-\\s*)?\\[?Promo Especial\\]?\\s*|\\s*(?:-\\s*)?\\[?PACK DE CAPÍTULOS\\]?\\s*|\\s*(?:-\\s*)?\\[?PACK\\]?\\s*|\\s*(?:-\\s*)?\\[?SUPER PACK\\]?\\s*|\\s*(?:-\\s*)?\\[?Version\\]?\\s*|\\s*(?:-\\s*)?\\[?TEMPORAL\\]?\\s*", RegexOption.IGNORE_CASE)
-
-        chapter.name = chapter.name.replace(regex, "").trim().replace("\\s+".toRegex(), " ")
-
+        chapter.name = limpiarTextoCapitulo(chapter.name)
         return chapter
+    }
+
+    private fun limpiarTextoCapitulo(name: String): String {
+        val regex = Regex("""\s*(?:-\s*)?\[?(?:AL DIA(?: CON LA RAW)?|Promo Especial|PACK DE CAPÍTULOS|PACK|SUPER PACK|Version|TEMPORAL)\]?\s*""", RegexOption.IGNORE_CASE)
+        return name.replace(regex, "").trim().replace(Regex("\\s+"), " ")
     }
 
     override fun pageListParse(document: Document): List<Page> {

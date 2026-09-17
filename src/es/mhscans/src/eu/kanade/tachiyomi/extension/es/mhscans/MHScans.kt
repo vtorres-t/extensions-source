@@ -57,7 +57,6 @@ abstract class MHScans :
         return chapter
     }
 
-
     override fun pageListParse(document: Document): List<Page> {
         super.pageListParse(document).also {
             if (it.isNotEmpty()) return it

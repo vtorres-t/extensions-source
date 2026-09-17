@@ -19,15 +19,16 @@ abstract class HadesNoFansub : Madara() {
 
     override val mangaDetailsSelectorTag = "div.tags-content a.notUsed" // Site uses this for the scanlator
 
-    override fun chapterFromElement(element: Element): SChapter {
-        val chapter = super.chapterFromElement(element)
+    override fun chapterFromElement(element: Element, mangaPath: String): SChapter? {
+        val chapter = super.chapterFromElement(element, mangaPath) ?: return null
 
         val dateElement = element.selectFirst("span.chapter-release-date span.timediff i")
         if (dateElement != null) {
             val dateText = dateElement.text().trim()
             chapter.date_upload = parsearFechaManual(dateText)
         } else {
-            chapter.date_upload = parsearFechaManual(element.selectFirst("span.chapter-release-date")?.text())
+            val backupText = element.selectFirst("span.chapter-release-date")?.text()
+            chapter.date_upload = parsearFechaManual(backupText)
         }
 
         return chapter
@@ -41,4 +42,5 @@ abstract class HadesNoFansub : Madara() {
             0L
         }
     }
+
 }

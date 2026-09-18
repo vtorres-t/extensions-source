@@ -19,6 +19,7 @@ import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
@@ -62,11 +63,18 @@ abstract class EmperorScan :
 
         if (minChapters <= 0) return super.popularMangaParse(response)
 
-        val peekBody = response.peekBody(1024 * 1024)
-        val document = Jsoup.parse(peekBody.string(), response.request.url.toString())
+        val responseBody = response.body ?: return super.popularMangaParse(response)
+        val bodyString = responseBody.string()
+        val contentType = responseBody.contentType()
+
+        val document = Jsoup.parse(bodyString, response.request.url.toString())
         val elements = document.select(popularMangaSelector())
 
-        val mangasPage = super.popularMangaParse(response)
+        val superResponse = response.newBuilder()
+            .body(bodyString.toResponseBody(contentType))
+            .build()
+
+        val mangasPage = super.popularMangaParse(superResponse)
 
         val filteredMangas = mangasPage.mangas.filterIndexed { index, _ ->
             val element = elements.getOrNull(index) ?: return@filterIndexed true

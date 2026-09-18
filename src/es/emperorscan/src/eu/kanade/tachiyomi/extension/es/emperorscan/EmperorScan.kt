@@ -2,12 +2,10 @@ package eu.kanade.tachiyomi.extension.es.emperorscan
 
 import android.content.SharedPreferences
 import android.widget.Toast
-import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.source.ConfigurableSource
-import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
@@ -19,8 +17,6 @@ import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
-import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -56,39 +52,6 @@ abstract class EmperorScan :
             thumbnail_url = processThumbnail(imageFromElement(it), true)
         }
     }
-
-    override fun popularMangaParse(response: Response): MangasPage {
-        val minChapters = preferences.getString(MIN_CHAPTERS_FILTER, MIN_CHAPTERS_FILTER_DEFAULT)
-            ?.toIntOrNull() ?: 0
-
-        if (minChapters <= 0) return super.popularMangaParse(response)
-
-        val responseBody = response.body ?: return super.popularMangaParse(response)
-        val bodyString = responseBody.string()
-        val contentType = responseBody.contentType()
-
-        val document = Jsoup.parse(bodyString, response.request.url.toString())
-        val elements = document.select(popularMangaSelector())
-
-        val superResponse = response.newBuilder()
-            .body(bodyString.toResponseBody(contentType))
-            .build()
-
-        val mangasPage = super.popularMangaParse(superResponse)
-
-        val filteredMangas = mangasPage.mangas.filterIndexed { index, _ ->
-            val element = elements.getOrNull(index) ?: return@filterIndexed true
-
-            val chapterText = element.select("span.chapter, div.chapter, .ac-b, .meta-item").text()
-            val chapterNumber = Regex("""\d+""").find(chapterText)?.value?.toIntOrNull() ?: 0
-
-            chapterNumber >= minChapters
-        }
-
-        return MangasPage(filteredMangas, mangasPage.hasNextPage)
-    }
-
-    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun searchMangaParse(response: Response) = popularMangaParse(response)
 
@@ -163,31 +126,10 @@ abstract class EmperorScan :
                 true
             }
         }.also { screen.addPreference(it) }
-
-        EditTextPreference(screen.context).apply {
-            key = MIN_CHAPTERS_FILTER
-            title = "Mínimo de capítulos"
-            summary = "Oculta mangas del catálogo con menos de este número de capítulos (0 para desactivar)"
-            setDefaultValue(MIN_CHAPTERS_FILTER_DEFAULT)
-            dialogTitle = "Número mínimo de capítulos"
-            text = preferences.getString(MIN_CHAPTERS_FILTER, MIN_CHAPTERS_FILTER_DEFAULT)
-
-            setOnPreferenceChangeListener { _, newValue ->
-                val newValueString = newValue as String
-                val isNumber = newValueString.toIntOrNull() != null
-                if (!isNumber) {
-                    Toast.makeText(screen.context, "Por favor, introduce un número válido", Toast.LENGTH_SHORT).show()
-                }
-                isNumber
-            }
-        }.also { screen.addPreference(it) }
     }
 
     companion object {
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
-
-        private const val MIN_CHAPTERS_FILTER = "minChaptersFilter"
-        private const val MIN_CHAPTERS_FILTER_DEFAULT = "20"
     }
 }

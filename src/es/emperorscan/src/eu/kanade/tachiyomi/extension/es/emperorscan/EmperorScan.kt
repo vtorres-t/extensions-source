@@ -19,6 +19,7 @@ import keiyoushi.utils.getPreferences
 import keiyoushi.utils.parseAs
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Response
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -56,29 +57,21 @@ abstract class EmperorScan :
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
-        val mangasPage = super.popularMangaParse(response)
-        return applyMinChaptersFilter(response, mangasPage)
-    }
-
-    override fun latestUpdatesParse(response: Response): MangasPage {
-        val mangasPage = super.latestUpdatesParse(response)
-        return applyMinChaptersFilter(response, mangasPage)
-    }
-
-    private fun applyMinChaptersFilter(response: Response, mangasPage: MangasPage): MangasPage {
         val minChapters = preferences.getString(MIN_CHAPTERS_FILTER, MIN_CHAPTERS_FILTER_DEFAULT)
             ?.toIntOrNull() ?: 0
 
-        if (minChapters <= 0) return mangasPage
+        if (minChapters <= 0) return super.popularMangaParse(response)
 
-        val document = response.asJsoup()
+        val peekBody = response.peekBody(1024 * 1024)
+        val document = Jsoup.parse(peekBody.string(), response.request.url.toString())
         val elements = document.select(popularMangaSelector())
+
+        val mangasPage = super.popularMangaParse(response)
 
         val filteredMangas = mangasPage.mangas.filterIndexed { index, _ ->
             val element = elements.getOrNull(index) ?: return@filterIndexed true
 
             val chapterText = element.select("span.chapter, div.chapter, .ac-b, .meta-item").text()
-
             val chapterNumber = Regex("""\d+""").find(chapterText)?.value?.toIntOrNull() ?: 0
 
             chapterNumber >= minChapters
@@ -86,6 +79,8 @@ abstract class EmperorScan :
 
         return MangasPage(filteredMangas, mangasPage.hasNextPage)
     }
+
+    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun searchMangaParse(response: Response) = popularMangaParse(response)
 

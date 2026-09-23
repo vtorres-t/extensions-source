@@ -6,9 +6,9 @@ plugins {
 
 keiyoushi {
     name = "Webtoons.com"
-    versionCode = 57
+    versionCode = 1
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     listOf("en", "es").forEach { langCode ->
         source {

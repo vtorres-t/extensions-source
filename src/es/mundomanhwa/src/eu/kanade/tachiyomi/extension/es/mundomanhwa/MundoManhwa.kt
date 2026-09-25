@@ -9,5 +9,5 @@ import java.util.Locale
 @Source
 abstract class MundoManhwa : Madara() {
     override val chapterMode = ChapterMode.MangaAjax
-    override val chapterDateFormat = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale("es"))
+    override val chapterDateFormat = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.forLanguageTag("es"))
 }

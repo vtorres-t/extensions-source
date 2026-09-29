@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Manga Ball"
-    versionCode = 1
+    versionCode = 2
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
@@ -16,11 +16,12 @@ keiyoushi {
     ).forEach {
         source {
             lang = it
-            baseUrl = "https://mangaball.net"
+            baseUrl = "https://mangaball.com"
         }
     }
 
     deeplink {
+        host("mangaball.com")
         host("mangaball.net")
         path("/title-detail/..*")
         path("/chapter-detail/..*")

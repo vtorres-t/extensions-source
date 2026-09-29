@@ -2,7 +2,6 @@ package eu.kanade.tachiyomi.extension.all.hentaihand
 
 import eu.kanade.tachiyomi.multisrc.hentaihand.HentaiHand
 import keiyoushi.annotation.Source
-import okhttp3.OkHttpClient
 
 @Source
 abstract class HentaiHand : HentaiHand() {
@@ -17,8 +16,4 @@ abstract class HentaiHand : HentaiHand() {
         "es" -> listOf(33, 37)
         else -> emptyList()
     }
-
-    override val client: OkHttpClient = network.client.newBuilder()
-        .addInterceptor { authIntercept(it) }
-        .build()
 }

@@ -8,7 +8,7 @@ keiyoushi {
     name = "Akuma"
     versionCode = 10
     contentWarning = ContentWarning.NSFW
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     listOf(
         "all",

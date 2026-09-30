@@ -84,34 +84,32 @@ abstract class OlympusScanlation :
         lastFetchTime = now
 
         val newSlugMap = comics.associate { it.id to it.slug }
-
-        preferences.slugMap += newSlugMap
+        preferences.slugMap = preferences.slugMap + newSlugMap
     }
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         fetchSeriesList()
         val result = client.get("$baseUrl/api/rankings?page=$page&period=total_ranking").parseAs<RankingDto>()
-        val slugMap = preferences.slugMap.toMutableMap()
-        val mangaList = result.data
-            .filter { it.type == "comic" }
-            .map {
-                slugMap[it.id] = it.slug
-                it.toSManga()
-            }
-        preferences.slugMap = slugMap
+
+        val comicItems = result.data.filter { it.type == "comic" }
+
+        val newSlugs = comicItems.associate { it.id to it.slug }
+        preferences.slugMap = preferences.slugMap + newSlugs
+
+        val mangaList = comicItems.map { it.toSManga() }
         return MangasPage(mangaList, hasNextPage = result.hasNextPage())
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         fetchSeriesList()
         val result = client.get("$baseUrl/api/new-chapters?page=$page").parseAs<NewChaptersDto>()
-        val slugMap = preferences.slugMap.toMutableMap()
-        val mangaList = result.data.filter { it.type == "comic" }
-            .map {
-                slugMap[it.id] = it.slug
-                it.toSManga()
-            }
-        preferences.slugMap = slugMap
+
+        val comicItems = result.data.filter { it.type == "comic" }
+
+        val newSlugs = comicItems.associate { it.id to it.slug }
+        preferences.slugMap = preferences.slugMap + newSlugs
+
+        val mangaList = comicItems.map { it.toSManga() }
         return MangasPage(mangaList, result.hasNextPage())
     }
 

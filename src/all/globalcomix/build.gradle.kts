@@ -6,9 +6,9 @@ plugins {
 
 keiyoushi {
     name = "GlobalComix"
-    versionCode = 4
+    versionCode = 0
     contentWarning = ContentWarning.MIXED
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     listOf(
         "en",

@@ -6,9 +6,13 @@ plugins {
 
 keiyoushi {
     name = "Olympus Scanlation"
+<<<<<<< HEAD
     versionCode = 22
+=======
+    versionCode = 0
+>>>>>>> upstream/main
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.4"
+    libVersion = "1.6"
 
     source {
         lang = "es"

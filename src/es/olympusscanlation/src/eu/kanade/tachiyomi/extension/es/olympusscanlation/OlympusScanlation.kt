@@ -33,16 +33,19 @@ abstract class OlympusScanlation :
     KeiSource(),
     ConfigurableSource {
 
+    private var domainAlreadyFetched = false
+
     private fun fetchedDomainUrl() {
-        if (!preferences.fetchDomainPref()) return
+        if (!preferences.fetchDomainPref() || domainAlreadyFetched) return
         try {
             val initClient = network.client
             val document = initClient.newCall(GET("https://olympus.pages.dev", headers)).execute().asJsoup()
-            val domain = document.selectFirst("meta[property=og:url]")?.attr("content")
-                ?: return
+            val domain = document.selectFirst("meta[property=og:url]")?.attr("content") ?: return
             val host = initClient.newCall(GET(domain, headers)).execute().request.url.host
             val newDomain = "https://$host"
+
             preferences.edit().putString(BASE_URL_PREF, newDomain).apply()
+            domainAlreadyFetched = true
         } catch (_: Exception) {
             return
         }
@@ -115,8 +118,8 @@ abstract class OlympusScanlation :
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         fetchSeriesList()
         val filteredList = seriesList.filter { it.name.contains(query, ignoreCase = true) }
-        val paginatedList = filteredList.drop((page - 1) * 20).take(20)
-        val hasNextPage = page * 20 < filteredList.size
+        val paginatedList = filteredList.drop((page - 1) * PAGE_SIZE).take(PAGE_SIZE)
+        val hasNextPage = page * PAGE_SIZE < filteredList.size
         return MangasPage(paginatedList.map { it.toSManga() }, hasNextPage)
     }
 
@@ -219,5 +222,6 @@ abstract class OlympusScanlation :
         private const val SLUG_MAP = "slugMap"
 
         private const val CACHE_DURATION_MS = 3 * 60 * 60 * 1000L // 3 hour
+        private const val PAGE_SIZE = 20
     }
 }

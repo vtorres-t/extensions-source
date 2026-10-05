@@ -64,7 +64,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@f67e240f2d9c3751125a1cd6362c11d7c558398b # v5.3.0
         with:
           python-version: '3.12'
 

@@ -63,6 +63,16 @@ jobs:
             echo "full_rebuild=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: '3.11'
+
+      - name: Install Python dependencies
+          run: |
+            python -m pip install --upgrade pip
+            pip install aiohttp
+
       - id: generate-matrices
         name: Create output matrices
         env:

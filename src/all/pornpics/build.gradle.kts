@@ -6,16 +6,20 @@ plugins {
 
 keiyoushi {
     name = "PornPics"
-    versionCode = 3
+    versionCode = 0
     contentWarning = ContentWarning.NSFW
-    libVersion = "1.4"
+    libVersion = "1.6"
 
-    listOf("en").forEach { langCode ->
+    listOf("en", "es").forEach { langCode ->
         source {
             lang = langCode
             baseUrl = "https://www.pornpics.com"
             if (langCode == "en") id = 1459635082044256286L
         }
+    }
+
+    deeplink {
+        path("/.*/galleries/..*")
     }
 }
 

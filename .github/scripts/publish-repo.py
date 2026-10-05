@@ -28,6 +28,10 @@ ASSET_LIMIT = 495  # Actual limit is 1000 but we upload 2 items per extension.
 to_delete: list[str] = json.loads(sys.argv[1])
 current_sha = sys.argv[2]
 current_sha_short = current_sha[:7]
+# Every extension was rebuilt from scratch: the build output is the source of truth, so
+# nothing is carried over from the published index. This is what drops extensions deleted
+# from the source tree, which a diff against the empty tree can't see.
+full_rebuild = sys.argv[3] == "true"
 
 with REPO_DIR.joinpath("index.json").open() as f:
     remote_proto = json_format.Parse(f.read(), index_pb2.Index())
@@ -46,7 +50,8 @@ else:
 updated_release_assets = {
     package_name: assets
     for package_name, assets in release_assets.items()
-    if not any(package_name.endswith(f".{module}") for module in to_delete)
+    if not full_rebuild
+    and not any(package_name.endswith(f".{module}") for module in to_delete)
 }
 
 SOURCE_DIR = Path(__file__).resolve().parents[2]
@@ -187,7 +192,8 @@ def main():
     final_extensions.extend(
         ext
         for ext in remote_proto.extensionList.extensions
-        if not any(ext.packageName.endswith(f".{module}") for module in to_delete)
+        if not full_rebuild
+        and not any(ext.packageName.endswith(f".{module}") for module in to_delete)
     )
     final_extensions.extend(ext for ext, _, _, _, _ in new_extensions)
     final_extensions.sort(key=lambda ext: ext.packageName)

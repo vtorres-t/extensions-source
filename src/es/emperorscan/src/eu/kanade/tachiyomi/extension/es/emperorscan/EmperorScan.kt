@@ -24,15 +24,13 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 @Source
-class EmperorScan :
-    HttpSource(),
+class EmperorScan(
+    override val id: Long,
+    override val name: String,
+    override val lang: String,
+    override val baseUrl: String,
+) : HttpSource(),
     ConfigurableSource {
-
-    override val name = "Emperor Scan"
-
-    override val baseUrl = "https://imperiomanhwa.com"
-
-    override val lang = "es"
 
     override val supportsLatest = true
 

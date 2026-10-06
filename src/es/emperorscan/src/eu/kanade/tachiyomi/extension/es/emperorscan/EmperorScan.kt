@@ -7,7 +7,6 @@ import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
-import eu.kanade.tachiyomi.source.model.JMangaInfo
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
@@ -21,12 +20,13 @@ import okhttp3.Request
 import okhttp3.Response
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
-import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Source
-class EmperorScan : ParsedHttpSource(), ConfigurableSource {
+class EmperorScan :
+    ParsedHttpSource(),
+    ConfigurableSource {
 
     override val name = "Emperor Scan"
 
@@ -66,7 +66,7 @@ class EmperorScan : ParsedHttpSource(), ConfigurableSource {
         }.joinToString(", ")
     }
 
-    override fun chapterListSelector() = "ul.contents li, div.chapters-container a, a:has(span:contains(Capítulo))"
+    override fun chapterListSelector() = "ul.divide-edge > li"
 
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
         val linkElement = element.selectFirst("a")
@@ -101,10 +101,8 @@ class EmperorScan : ParsedHttpSource(), ConfigurableSource {
         }
     }
 
-    override fun pageListParse(document: Document): List<Page> {
-        return document.select("div.reader-area img, div.read-container img, main img[src*=/img/]").mapIndexed { index, element ->
-            Page(index, "", element.absUrl("src"))
-        }
+    override fun pageListParse(document: Document): List<Page> = document.select("div.reader-area img, div.read-container img, main img[src*=/img/]").mapIndexed { index, element ->
+        Page(index, "", element.absUrl("src"))
     }
 
     override fun imageUrlParse(document: Document): String = throw UnsupportedOperationException()

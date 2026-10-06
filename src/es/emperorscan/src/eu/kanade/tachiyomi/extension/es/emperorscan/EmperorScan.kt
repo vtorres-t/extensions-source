@@ -25,7 +25,7 @@ import java.util.Locale
 
 @Source
 class EmperorScan :
-    ParsedHttpSource(),
+    HttpSource(),
     ConfigurableSource {
 
     override val name = "Emperor Scan"

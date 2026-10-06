@@ -20,8 +20,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
+import org.json.JSONObject
+import java.util.Calendar
 
 @Source
 class EmperorScan(
@@ -55,29 +55,22 @@ class EmperorScan(
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
 
-        // Mapeamos los elementos del catálogo con los selectores actualizados del HTML
         val mangas = document.select("ul.grid > li").map { element ->
             SManga.create().apply {
                 val anchor = element.selectFirst("a[href*='/manga/']")
                 setUrlWithoutDomain(anchor?.attr("href") ?: "")
 
-                // El título se extrae de forma segura desde el atributo 'aria-label' o el texto del header
                 title = anchor?.attr("aria-label")?.trim() ?: element.select("h2").text().trim()
 
-                // Obtenemos el thumbnail usando el atributo 'src' de la imagen interna
                 thumbnail_url = element.selectFirst("img")?.attr("abs:src") ?: ""
             }
         }
 
-        // CORRECCIÓN DEFINITIVA DE PAGINACIÓN:
-        // Identificamos el valor de la página que la extensión solicitó a la red
         val currentPage = response.request.url.queryParameter("page")?.toIntOrNull() ?: 1
 
-        // Buscamos el bloque de texto con el formato "Página 1 de 25"
         val paginationText = document.select("p:contains(Página)").text()
 
         val maxPage = try {
-            // Buscamos dígitos numéricos después de la palabra "de "
             val regex = """Página\s+\d+\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
             val matchResult = regex.find(paginationText)
             matchResult?.groupValues?.get(1)?.toIntOrNull() ?: 1
@@ -85,7 +78,6 @@ class EmperorScan(
             1
         }
 
-        // Determinamos si hay una página consecutiva basándonos en el total absoluto del sitio
         val hasNextPage = currentPage < maxPage
 
         return MangasPage(mangas, hasNextPage)
@@ -93,7 +85,7 @@ class EmperorScan(
 
     override fun latestUpdatesRequest(page: Int): Request {
         val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
-            .addQueryParameter("sort", "latest") // Conservamos el filtro de novedades
+            .addQueryParameter("sort", "latest")
             .addQueryParameter("page", page.toString())
             .build()
         return GET(url, headers)
@@ -115,7 +107,7 @@ class EmperorScan(
         val document = response.asJsoup()
         return SManga.create().apply {
             title = document.selectFirst("h1")?.text() ?: ""
-            thumbnail_url = document.selectFirst("div.bg-surface-2 img, div.hposter__card img")?.absUrl("src")
+            thumbnail_url = document.selectFirst("div.bg-surface-2 img, div.hposter__card img")?.attr("abs:src") ?: ""
             description = document.select("p.col-span-2.max-w-3xl").text()
                 .replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = true)
                 .trim()
@@ -172,8 +164,45 @@ class EmperorScan(
     private fun parseChapterDate(dateText: String): Long {
         if (dateText.isEmpty()) return 0L
         return try {
-            val parsed = ZonedDateTime.parse(dateText, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-            parsed.toInstant().toEpochMilli()
+            val cleaned = dateText.trim().lowercase()
+            val now = Calendar.getInstance()
+            val currentYear = now.get(Calendar.YEAR)
+
+            val parts = cleaned.split(" ")
+            if (parts.size >= 2) {
+                val day = parts[0].toIntOrNull() ?: 1
+                val monthStr = parts[1].replace(".", "")
+                val month = when {
+                    monthStr.startsWith("ene") -> Calendar.JANUARY
+                    monthStr.startsWith("feb") -> Calendar.FEBRUARY
+                    monthStr.startsWith("mar") -> Calendar.MARCH
+                    monthStr.startsWith("abr") -> Calendar.APRIL
+                    monthStr.startsWith("may") -> Calendar.MAY
+                    monthStr.startsWith("jun") -> Calendar.JUNE
+                    monthStr.startsWith("jul") -> Calendar.JULY
+                    monthStr.startsWith("ago") -> Calendar.AUGUST
+                    monthStr.startsWith("sep") -> Calendar.SEPTEMBER
+                    monthStr.startsWith("oct") -> Calendar.OCTOBER
+                    monthStr.startsWith("nov") -> Calendar.NOVEMBER
+                    monthStr.startsWith("dic") -> Calendar.DECEMBER
+                    else -> now.get(Calendar.MONTH)
+                }
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, currentYear)
+                    set(Calendar.MONTH, month)
+                    set(Calendar.DAY_OF_MONTH, day)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                if (cal.timeInMillis > System.currentTimeMillis()) {
+                    cal.add(Calendar.YEAR, -1)
+                }
+                cal.timeInMillis
+            } else {
+                0L
+            }
         } catch (e: Exception) {
             0L
         }
@@ -183,7 +212,7 @@ class EmperorScan(
         val document = response.asJsoup()
         return document.select("div.reader-area img, div.read-container img, main img[src*=/img/]").mapIndexed { index, element ->
             val imageUrl = element.attr("data-src").ifEmpty { element.attr("src") }
-            Page(index, "", element.absUrl(imageUrl))
+            Page(index, "", element.absUrl(if (element.hasAttr("data-src")) "data-src" else "src"))
         }
     }
 

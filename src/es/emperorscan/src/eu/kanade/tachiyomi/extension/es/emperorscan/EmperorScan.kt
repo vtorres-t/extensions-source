@@ -62,35 +62,38 @@ class EmperorScan(
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
 
-        val mangas = document.select("main div.grid > div, main div.grid > article").map { element ->
+        val mangas = document.select("ul.grid li article").map { element ->
             SManga.create().apply {
-                val anchor = element.selectFirst("a[href*='/manga/']")
+                val anchor = element.selectFirst("h2 a, a[href*='/manga/']")
                 setUrlWithoutDomain(anchor?.attr("href") ?: "")
 
-                title = element.select("h2, h3").text().trim()
+                title = element.select("h2 a").text().trim().ifEmpty {
+                    element.select("a[aria-label]").attr("aria-label").trim()
+                }
 
                 val img = element.selectFirst("img")
-                thumbnail_url = img?.attr("abs:src")?.ifEmpty { img.attr("abs:data-src") } ?: ""
+                thumbnail_url = img?.attr("abs:src")?.ifEmpty {
+                    img?.attr("abs:srcset")?.substringBefore(" ") ?: ""
+                } ?: ""
             }
         }.filter { it.url.isNotEmpty() && it.title.isNotEmpty() }
 
-        val segments = response.request.url.pathSegments
-        val pageIdx = segments.indexOf("page")
-        val currentPage = if (pageIdx != -1 && pageIdx + 1 < segments.size) {
-            segments[pageIdx + 1].toIntOrNull() ?: 1
-        } else {
-            1
-        }
-        val paginationText = document.select("p:contains(Página), div:contains(Página), span:contains(Página)").text()
+        val paginationText = document.select("main p:contains(Página)").text()
 
-        val maxPage = try {
-            val regexMax = """Página\s+\d+\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
-            regexMax.find(paginationText)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+        var hasNextPage = false
+        try {
+            val regex = """Página\s+(\d+)\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            val match = regex.find(paginationText)
+            if (match != null) {
+                val currentPage = match.groupValues[1].toIntOrNull() ?: 1
+                val maxPage = match.groupValues[2].toIntOrNull() ?: 1
+                hasNextPage = currentPage < maxPage
+            } else {
+                hasNextPage = mangas.size >= 20
+            }
         } catch (e: Exception) {
-            1
+            hasNextPage = mangas.size >= 20
         }
-
-        val hasNextPage = currentPage < maxPage
 
         return MangasPage(mangas, hasNextPage)
     }

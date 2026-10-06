@@ -46,8 +46,11 @@ class EmperorScan(
         preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
     override fun popularMangaRequest(page: Int): Request {
-        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
-            .addQueryParameter("page", page.toString())
+        val url = baseUrl.toHttpUrl().newBuilder()
+            .addPathSegment("manga")
+            .addPathSegment("page")
+            .addPathSegment(page.toString())
+            .addQueryParameter("orden", "valoradas")
             .build()
         return GET(url, headers)
     }
@@ -55,25 +58,30 @@ class EmperorScan(
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
 
-        val mangas = document.select("ul.grid > li").map { element ->
+        val mangas = document.select("main div.grid > div, main div.grid > article").map { element ->
             SManga.create().apply {
                 val anchor = element.selectFirst("a[href*='/manga/']")
                 setUrlWithoutDomain(anchor?.attr("href") ?: "")
 
-                title = anchor?.attr("aria-label")?.trim() ?: element.select("h2").text().trim()
+                title = element.select("h2, h3").text().trim()
 
-                thumbnail_url = element.selectFirst("img")?.attr("abs:src") ?: ""
+                val img = element.selectFirst("img")
+                thumbnail_url = img?.attr("abs:src")?.ifEmpty { img.attr("abs:data-src") } ?: ""
             }
+        }.filter { it.url.isNotEmpty() && it.title.isNotEmpty() }
+
+        val segments = response.request.url.pathSegments
+        val pageIdx = segments.indexOf("page")
+        val currentPage = if (pageIdx != -1 && pageIdx + 1 < segments.size) {
+            segments[pageIdx + 1].toIntOrNull() ?: 1
+        } else {
+            1
         }
-
-        val currentPage = response.request.url.queryParameter("page")?.toIntOrNull() ?: 1
-
-        val paginationText = document.select("p:contains(Página)").text()
+        val paginationText = document.select("p:contains(Página), div:contains(Página), span:contains(Página)").text()
 
         val maxPage = try {
-            val regex = """Página\s+\d+\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
-            val matchResult = regex.find(paginationText)
-            matchResult?.groupValues?.get(1)?.toIntOrNull() ?: 1
+            val regexMax = """Página\s+\d+\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            regexMax.find(paginationText)?.groupValues?.get(1)?.toIntOrNull() ?: 1
         } catch (e: Exception) {
             1
         }
@@ -84,9 +92,11 @@ class EmperorScan(
     }
 
     override fun latestUpdatesRequest(page: Int): Request {
-        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
-            .addQueryParameter("sort", "latest")
-            .addQueryParameter("page", page.toString())
+        val url = baseUrl.toHttpUrl().newBuilder()
+            .addPathSegment("manga")
+            .addPathSegment("page")
+            .addPathSegment(page.toString())
+            .addQueryParameter("orden", "latest")
             .build()
         return GET(url, headers)
     }
@@ -94,8 +104,8 @@ class EmperorScan(
     override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
-            .addQueryParameter("search", query)
+        val url = "$baseUrl/manga/buscar".toHttpUrl().newBuilder()
+            .addQueryParameter("q", query)
             .addQueryParameter("page", page.toString())
             .build()
         return GET(url, headers)

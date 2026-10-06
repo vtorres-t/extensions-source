@@ -48,11 +48,15 @@ class EmperorScan(
     override fun popularMangaRequest(page: Int): Request {
         val url = baseUrl.toHttpUrl().newBuilder()
             .addPathSegment("manga")
-            .addPathSegment("page")
-            .addPathSegment(page.toString())
-            .addQueryParameter("orden", "valoradas")
-            .build()
-        return GET(url, headers)
+
+        if (page > 1) {
+            url.addPathSegment("page")
+                .addPathSegment(page.toString())
+        }
+
+        url.addQueryParameter("orden", "valoradas")
+
+        return GET(url.build(), headers)
     }
 
     override fun popularMangaParse(response: Response): MangasPage {
@@ -94,17 +98,21 @@ class EmperorScan(
     override fun latestUpdatesRequest(page: Int): Request {
         val url = baseUrl.toHttpUrl().newBuilder()
             .addPathSegment("manga")
-            .addPathSegment("page")
-            .addPathSegment(page.toString())
-            .addQueryParameter("orden", "latest")
-            .build()
-        return GET(url, headers)
+
+        if (page > 1) {
+            url.addPathSegment("page")
+                .addPathSegment(page.toString())
+        }
+
+        url.addQueryParameter("orden", "latest")
+
+        return GET(url.build(), headers)
     }
 
     override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$baseUrl/manga/buscar".toHttpUrl().newBuilder()
+        val url = "$baseUrl/buscar".toHttpUrl().newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("page", page.toString())
             .build()

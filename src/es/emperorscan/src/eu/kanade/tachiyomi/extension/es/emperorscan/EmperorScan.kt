@@ -7,21 +7,21 @@ import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.ParsedHttpSource
+import eu.kanade.tachiyomi.source.online.HttpSource
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
+import keiyoushi.utils.asJsoup
 import keiyoushi.utils.getPreferences
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
-import java.text.SimpleDateFormat
-import java.util.Locale
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 @Source
 class EmperorScan :
@@ -47,39 +47,70 @@ class EmperorScan :
     private val removePremium get() =
         preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
-    private val dateFormat by lazy { SimpleDateFormat("dd MMM.", Locale.forLanguageTag("es")) }
+    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/manga/?page=$page", headers)
 
-    override fun mangaDetailsParse(document: Document): SManga = SManga.create().apply {
-        title = document.selectFirst("h1")?.text() ?: ""
-        thumbnail_url = document.selectFirst("div.hposter__card img, div.bg-surface-2 img")?.absUrl("src")
-        description = document.select("p.col-span-2.max-w-3xl").text()
-            .replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = true)
-            .trim()
-        status = when (document.select("span.text-muted:contains(En curso), span:contains(Publicándose)").size > 0) {
-            true -> SManga.ONGOING
-            false -> SManga.UNKNOWN
+    override fun popularMangaParse(response: Response): MangasPage {
+        val document = response.asJsoup()
+        val mangas = document.select("div.grid a:has(img), div.library-grid a, a:has(img.object-cover)").map { element ->
+            SManga.create().apply {
+                setUrlWithoutDomain(element.attr("href"))
+                title = element.select("img").attr("alt")
+                thumbnail_url = element.select("img").absUrl("src")
+            }
         }
-
-        val genres = document.select("a.chip").map { it.text().trim() }
-        genre = genres.filterNot { item ->
-            removePremium && (item.contains("Vip", ignoreCase = true) || item.contains("Premium", ignoreCase = true))
-        }.joinToString(", ")
+        val hasNextPage = document.selectFirst("a:contains(Siguiente), a[aria-label*='Next']") != null
+        return MangasPage(mangas, hasNextPage)
     }
 
-    override fun chapterListSelector() = "ul.divide-edge > li"
+    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/manga/?sort=latest&page=$page", headers)
 
-    override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
-        val linkElement = element.selectFirst("a")
-        setUrlWithoutDomain(linkElement?.attr("href") ?: "")
+    override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
-        name = linkElement?.selectFirst("span")?.text()?.trim() ?: element.text().replace("VIP", "", ignoreCase = true).trim()
+    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
+            .addQueryParameter("search", query)
+            .addQueryParameter("page", page.toString())
+            .build()
+        return GET(url, headers)
+    }
 
-        val dateText = element.selectFirst("time")?.attr("datetime") ?: ""
-        date_upload = parseChapterDate(dateText)
+    override fun searchMangaParse(response: Response): MangasPage = popularMangaParse(response)
+
+    override fun mangaDetailsParse(response: Response): SManga {
+        val document = response.asJsoup()
+        return SManga.create().apply {
+            title = document.selectFirst("h1")?.text() ?: ""
+            thumbnail_url = document.selectFirst("div.bg-surface-2 img, div.hposter__card img")?.absUrl("src")
+            description = document.select("p.col-span-2.max-w-3xl").text()
+                .replace("HAZ CLICK AQUÍ PARA UNIRTE A NUESTRO DISCORD", "", ignoreCase = true)
+                .trim()
+            status = when (document.select("span.text-muted:contains(En curso), span:contains(Publicándose)").size > 0) {
+                true -> SManga.ONGOING
+                false -> SManga.UNKNOWN
+            }
+
+            val genres = document.select("a.chip").map { it.text().trim() }
+            genre = genres.filterNot { item ->
+                removePremium && (item.contains("Vip", ignoreCase = true) || item.contains("Premium", ignoreCase = true))
+            }.joinToString(", ")
+        }
     }
 
     override fun chapterListParse(response: Response): List<SChapter> {
-        val chapters = super.chapterListParse(response)
+        val document = response.asJsoup()
+        val chapters = document.select("ul.divide-edge > li").map { element ->
+            SChapter.create().apply {
+                val linkElement = element.selectFirst("a")
+                setUrlWithoutDomain(linkElement?.attr("href") ?: "")
+
+                name = linkElement?.selectFirst("span")?.text()?.trim()
+                    ?: element.text().replace("VIP", "", ignoreCase = true).trim()
+
+                val dateText = element.selectFirst("time")?.attr("datetime") ?: ""
+                date_upload = parseChapterDate(dateText)
+            }
+        }
+
         return if (removePremium) {
             chapters.filterNot { chapter ->
                 chapter.name.contains("Vip", ignoreCase = true) ||
@@ -101,40 +132,15 @@ class EmperorScan :
         }
     }
 
-    override fun pageListParse(document: Document): List<Page> = document.select("div.reader-area img, div.read-container img, main img[src*=/img/]").mapIndexed { index, element ->
-        Page(index, "", element.absUrl("src"))
+    override fun pageListParse(response: Response): List<Page> {
+        val document = response.asJsoup()
+        return document.select("div.reader-area img, div.read-container img, main img[src*=/img/]").mapIndexed { index, element ->
+            val imageUrl = element.attr("data-src").ifEmpty { element.attr("src") }
+            Page(index, "", element.absUrl(imageUrl))
+        }
     }
 
-    override fun imageUrlParse(document: Document): String = throw UnsupportedOperationException()
-
-    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/manga/?page=$page", headers)
-
-    override fun popularMangaSelector() = "div.grid a:has(img), div.library-grid a"
-
-    override fun popularMangaFromElement(element: Element): SManga = SManga.create().apply {
-        setUrlWithoutDomain(element.attr("href"))
-        title = element.select("img").attr("alt")
-        thumbnail_url = element.select("img").absUrl("src")
-    }
-
-    override fun popularMangaNextPageSelector() = "a:contains(Siguiente), a[aria-label*='Next']"
-
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/manga/?sort=latest&page=$page", headers)
-    override fun latestUpdatesSelector() = popularMangaSelector()
-    override fun latestUpdatesFromElement(element: Element) = popularMangaFromElement(element)
-    override fun latestUpdatesNextPageSelector() = popularMangaNextPageSelector()
-
-    override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
-        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
-            .addQueryParameter("search", query)
-            .addQueryParameter("page", page.toString())
-            .build()
-        return GET(url, headers)
-    }
-
-    override fun searchMangaSelector() = popularMangaSelector()
-    override fun searchMangaFromElement(element: Element) = popularMangaFromElement(element)
-    override fun searchMangaNextPageSelector() = popularMangaNextPageSelector()
+    override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {

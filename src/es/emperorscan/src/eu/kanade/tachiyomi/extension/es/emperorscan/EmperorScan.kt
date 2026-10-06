@@ -21,7 +21,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import org.json.JSONObject
-import java.util.Calendar
 
 @Source
 class EmperorScan(
@@ -42,8 +41,9 @@ class EmperorScan(
 
     private val preferences: SharedPreferences = getPreferences()
 
-    private val removePremium get() =
-        preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
+    private val removePremium
+        get() =
+            preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
     override fun popularMangaRequest(page: Int): Request {
         val url = baseUrl.toHttpUrl().newBuilder()
@@ -177,8 +177,8 @@ class EmperorScan(
                     url = "${response.request.url.encodedPath.replace("/capitulos.json", "")}/$chapterSlug"
                     name = item.getString("label").trim()
 
-                    val dateText = item.optString("published_label", "")
-                    date_upload = parseChapterDate(dateText)
+                    // val dateText = item.optString("published_label", "")
+                    // date_upload = parseChapterDate(dateText)
                 }
                 chapters.add(chapter)
             }
@@ -192,47 +192,17 @@ class EmperorScan(
     private fun parseChapterDate(dateText: String): Long {
         if (dateText.isEmpty()) return 0L
         return try {
-            val cleaned = dateText.trim().lowercase()
-            val now = Calendar.getInstance()
-            val currentYear = now.get(Calendar.YEAR)
-
-            val parts = cleaned.split(" ")
-            if (parts.size >= 2) {
-                val day = parts[0].toIntOrNull() ?: 1
-                val monthStr = parts[1].replace(".", "")
-                val month = when {
-                    monthStr.startsWith("ene") -> Calendar.JANUARY
-                    monthStr.startsWith("feb") -> Calendar.FEBRUARY
-                    monthStr.startsWith("mar") -> Calendar.MARCH
-                    monthStr.startsWith("abr") -> Calendar.APRIL
-                    monthStr.startsWith("may") -> Calendar.MAY
-                    monthStr.startsWith("jun") -> Calendar.JUNE
-                    monthStr.startsWith("jul") -> Calendar.JULY
-                    monthStr.startsWith("ago") -> Calendar.AUGUST
-                    monthStr.startsWith("sep") -> Calendar.SEPTEMBER
-                    monthStr.startsWith("oct") -> Calendar.OCTOBER
-                    monthStr.startsWith("nov") -> Calendar.NOVEMBER
-                    monthStr.startsWith("dic") -> Calendar.DECEMBER
-                    else -> now.get(Calendar.MONTH)
-                }
-                val cal = Calendar.getInstance().apply {
-                    set(Calendar.YEAR, currentYear)
-                    set(Calendar.MONTH, month)
-                    set(Calendar.DAY_OF_MONTH, day)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                if (cal.timeInMillis > System.currentTimeMillis()) {
-                    cal.add(Calendar.YEAR, -1)
-                }
-                cal.timeInMillis
-            } else {
+            val cleaned = dateText.replace("Z", "+00:00")
+            val format = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US)
+            format.parse(cleaned)?.time ?: 0L
+        } catch (e: Exception) {
+            try {
+                val cleaned = dateText.substringBefore("T").trim()
+                val format = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                format.parse(cleaned)?.time ?: 0L
+            } catch (e2: Exception) {
                 0L
             }
-        } catch (e: Exception) {
-            0L
         }
     }
 

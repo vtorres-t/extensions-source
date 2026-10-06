@@ -61,14 +61,41 @@ class EmperorScan(
 
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
-        val mangas = document.select("div.grid a:has(img), div.library-grid a, a:has(img.object-cover)").map { element ->
+
+        val mangas = document.select("main .grid > div, main .grid > article, ul.grid li article").map { element ->
             SManga.create().apply {
-                setUrlWithoutDomain(element.attr("href"))
-                title = element.select("img").attr("alt")
-                thumbnail_url = element.select("img").absUrl("src")
+                val anchor = element.selectFirst("a[href*='/manga/']")
+                setUrlWithoutDomain(anchor?.attr("href") ?: "")
+
+                title = element.select("h2 a, h2, h3").text().trim()
+
+                val img = element.selectFirst("img")
+                thumbnail_url = img?.attr("abs:src")?.ifEmpty {
+                    img.attr("abs:data-src")?.ifEmpty {
+                        img.attr("abs:srcset")?.substringBefore(" ") ?: ""
+                    }
+                } ?: ""
             }
+        }.filter { it.url.isNotEmpty() && it.title.isNotEmpty() }
+
+        val segments = response.request.url.pathSegments
+        val pageIdx = segments.indexOf("page")
+        val currentPage = if (pageIdx != -1 && pageIdx + 1 < segments.size) {
+            segments[pageIdx + 1].toIntOrNull() ?: 1
+        } else {
+            1
         }
-        val hasNextPage = document.selectFirst("a:contains(Siguiente), a[aria-label*='Siguiente']") != null
+        val paginationText = document.select("p:contains(Página), div:contains(Página), span:contains(Página)").text()
+
+        val maxPage = try {
+            val regexMax = """Página\s+\d+\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            regexMax.find(paginationText)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+        } catch (e: Exception) {
+            1
+        }
+
+        val hasNextPage = currentPage < maxPage
+
         return MangasPage(mangas, hasNextPage)
     }
 

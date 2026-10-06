@@ -61,40 +61,14 @@ class EmperorScan(
 
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
-
-        val mangas = document.select("ul.grid li article").map { element ->
+        val mangas = document.select("div.grid a:has(img), div.library-grid a, a:has(img.object-cover)").map { element ->
             SManga.create().apply {
-                val anchor = element.selectFirst("h2 a, a[href*='/manga/']")
-                setUrlWithoutDomain(anchor?.attr("href") ?: "")
-
-                title = element.select("h2 a").text().trim().ifEmpty {
-                    element.select("a[aria-label]").attr("aria-label").trim()
-                }
-
-                val img = element.selectFirst("img")
-                thumbnail_url = img?.attr("abs:src")?.ifEmpty {
-                    img?.attr("abs:srcset")?.substringBefore(" ") ?: ""
-                } ?: ""
+                setUrlWithoutDomain(element.attr("href"))
+                title = element.select("img").attr("alt")
+                thumbnail_url = element.select("img").absUrl("src")
             }
-        }.filter { it.url.isNotEmpty() && it.title.isNotEmpty() }
-
-        val paginationText = document.select("main p:contains(Página)").text()
-
-        var hasNextPage = false
-        try {
-            val regex = """Página\s+(\d+)\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
-            val match = regex.find(paginationText)
-            if (match != null) {
-                val currentPage = match.groupValues[1].toIntOrNull() ?: 1
-                val maxPage = match.groupValues[2].toIntOrNull() ?: 1
-                hasNextPage = currentPage < maxPage
-            } else {
-                hasNextPage = mangas.size >= 20
-            }
-        } catch (e: Exception) {
-            hasNextPage = mangas.size >= 20
         }
-
+        val hasNextPage = document.selectFirst("a:contains(Siguiente), a[aria-label*='Siguiente']") != null
         return MangasPage(mangas, hasNextPage)
     }
 

@@ -37,7 +37,7 @@ class EmperorScan(
     private val baseUrlHost by lazy { baseUrl.toHttpUrl().host }
 
     override val client: OkHttpClient = network.client.newBuilder()
-        .rateLimit(2) { it.host == baseUrlHost }
+        .rateLimit(6) { it.host == baseUrlHost }
         .build()
 
     private val preferences: SharedPreferences = getPreferences()
@@ -94,30 +94,42 @@ class EmperorScan(
         }
     }
 
+    override fun chapterListRequest(manga: SManga): Request {
+        val mangaUrl = manga.url.removeSuffix("/")
+        return GET("$baseUrl$mangaUrl/capitulos.json", headers)
+    }
+
     override fun chapterListParse(response: Response): List<SChapter> {
-        val document = response.asJsoup()
-        val chapters = document.select("ul.divide-edge > li").map { element ->
-            SChapter.create().apply {
-                val linkElement = element.selectFirst("a")
-                setUrlWithoutDomain(linkElement?.attr("href") ?: "")
+        val jsonString = response.body.string()
+        val chapters = mutableListOf<SChapter>()
 
-                name = linkElement?.selectFirst("span")?.text()?.trim()
-                    ?: element.text().replace("VIP", "", ignoreCase = true).trim()
+        try {
+            val jsonObject = JSONObject(jsonString)
+            val itemsArray = jsonObject.getJSONArray("items")
 
-                val dateText = element.selectFirst("time")?.attr("datetime") ?: ""
-                date_upload = parseChapterDate(dateText)
+            for (i in 0 until itemsArray.length()) {
+                val item = itemsArray.getJSONObject(i)
+
+                val isVip = item.optString("access", "").contains("vip", ignoreCase = true) ||
+                    item.optBoolean("locked", false)
+
+                if (removePremium && isVip) continue
+
+                val chapter = SChapter.create().apply {
+                    val chapterSlug = item.getString("slug")
+                    url = "${response.request.url.encodedPath.replace("/capitulos.json", "")}/$chapterSlug"
+                    name = item.getString("label").trim()
+
+                    val dateText = item.optString("published_label", "")
+                    date_upload = parseChapterDate(dateText)
+                }
+                chapters.add(chapter)
             }
+        } catch (e: Exception) {
+            return emptyList()
         }
 
-        return if (removePremium) {
-            chapters.filterNot { chapter ->
-                chapter.name.contains("Vip", ignoreCase = true) ||
-                    chapter.name.contains("Premium", ignoreCase = true) ||
-                    chapter.url.contains("vip", ignoreCase = true)
-            }
-        } else {
-            chapters
-        }
+        return chapters
     }
 
     private fun parseChapterDate(dateText: String): Long {

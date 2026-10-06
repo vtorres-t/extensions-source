@@ -52,8 +52,8 @@ class EmperorScan(
         val mangas = document.select("div.grid a:has(img), div.library-grid a, a:has(img.object-cover)").map { element ->
             SManga.create().apply {
                 setUrlWithoutDomain(element.attr("href"))
-                title = element.select("img").attr("alt")
-                thumbnail_url = element.select("img").absUrl("src")
+                title = element.selectFirst("img")?.attr("alt") ?: ""
+                thumbnail_url = element.selectFirst("img")?.attr("abs:src") ?: ""
             }
         }
         val hasNextPage = document.selectFirst("a:contains(Siguiente), a[aria-label*='Next']") != null

@@ -45,22 +45,59 @@ class EmperorScan(
     private val removePremium get() =
         preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
-    override fun popularMangaRequest(page: Int): Request = GET("$baseUrl/manga/?page=$page", headers)
+    override fun popularMangaRequest(page: Int): Request {
+        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
+            .addQueryParameter("page", page.toString())
+            .build()
+        return GET(url, headers)
+    }
 
     override fun popularMangaParse(response: Response): MangasPage {
         val document = response.asJsoup()
-        val mangas = document.select("div.grid a:has(img), div.library-grid a, a:has(img.object-cover)").map { element ->
+
+        // Mapeamos los elementos del catálogo con los selectores actualizados del HTML
+        val mangas = document.select("ul.grid > li").map { element ->
             SManga.create().apply {
-                setUrlWithoutDomain(element.attr("href"))
-                title = element.selectFirst("img")?.attr("alt") ?: ""
+                val anchor = element.selectFirst("a[href*='/manga/']")
+                setUrlWithoutDomain(anchor?.attr("href") ?: "")
+
+                // El título se extrae de forma segura desde el atributo 'aria-label' o el texto del header
+                title = anchor?.attr("aria-label")?.trim() ?: element.select("h2").text().trim()
+
+                // Obtenemos el thumbnail usando el atributo 'src' de la imagen interna
                 thumbnail_url = element.selectFirst("img")?.attr("abs:src") ?: ""
             }
         }
-        val hasNextPage = document.selectFirst("a:contains(Siguiente), a[aria-label*='Next']") != null
+
+        // CORRECCIÓN DEFINITIVA DE PAGINACIÓN:
+        // Identificamos el valor de la página que la extensión solicitó a la red
+        val currentPage = response.request.url.queryParameter("page")?.toIntOrNull() ?: 1
+
+        // Buscamos el bloque de texto con el formato "Página 1 de 25"
+        val paginationText = document.select("p:contains(Página)").text()
+
+        val maxPage = try {
+            // Buscamos dígitos numéricos después de la palabra "de "
+            val regex = """Página\s+\d+\s+de\s+(\d+)""".toRegex(RegexOption.IGNORE_CASE)
+            val matchResult = regex.find(paginationText)
+            matchResult?.groupValues?.get(1)?.toIntOrNull() ?: 1
+        } catch (e: Exception) {
+            1
+        }
+
+        // Determinamos si hay una página consecutiva basándonos en el total absoluto del sitio
+        val hasNextPage = currentPage < maxPage
+
         return MangasPage(mangas, hasNextPage)
     }
 
-    override fun latestUpdatesRequest(page: Int): Request = GET("$baseUrl/manga/?sort=latest&page=$page", headers)
+    override fun latestUpdatesRequest(page: Int): Request {
+        val url = "$baseUrl/manga/".toHttpUrl().newBuilder()
+            .addQueryParameter("sort", "latest") // Conservamos el filtro de novedades
+            .addQueryParameter("page", page.toString())
+            .build()
+        return GET(url, headers)
+    }
 
     override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 

@@ -8,8 +8,7 @@ keiyoushi {
     name = "Emperor Scan"
     versionCode = 14
     contentWarning = ContentWarning.SAFE
-    libVersion = "1.6"
-    theme = "madara"
+    libVersion = "1.5"
 
     source {
         lang = "es"

@@ -5,13 +5,13 @@ plugins {
 }
 
 keiyoushi {
-    name = "Pawchive"
-    versionCode = 3
-    contentWarning = ContentWarning.NSFW
+    name = "Snafu Comics"
+    versionCode = 0
+    contentWarning = ContentWarning.SAFE
     libVersion = "1.6"
 
     source {
-        lang = "all"
-        baseUrl = "https://pawchive.pw"
+        lang = "en"
+        baseUrl = "https://www.snafu-comics.com"
     }
 }

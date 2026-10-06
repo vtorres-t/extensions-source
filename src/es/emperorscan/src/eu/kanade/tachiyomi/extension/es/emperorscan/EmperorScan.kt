@@ -69,12 +69,12 @@ class EmperorScan : ParsedHttpSource(), ConfigurableSource {
     override fun chapterListSelector() = "ul.contents li, div.chapters-container a, a:has(span:contains(Capítulo))"
 
     override fun chapterFromElement(element: Element): SChapter = SChapter.create().apply {
-        val linkElement = if (element.tagName() == "a") element else element.selectFirst("a")
+        val linkElement = element.selectFirst("a")
         setUrlWithoutDomain(linkElement?.attr("href") ?: "")
 
-        name = element.text().replace("VIP", "", ignoreCase = true).trim()
+        name = linkElement?.selectFirst("span")?.text()?.trim() ?: element.text().replace("VIP", "", ignoreCase = true).trim()
 
-        val dateText = element.select("span.text-faint, span.date-text").text().trim()
+        val dateText = element.selectFirst("time")?.attr("datetime") ?: ""
         date_upload = parseChapterDate(dateText)
     }
 
@@ -94,8 +94,9 @@ class EmperorScan : ParsedHttpSource(), ConfigurableSource {
     private fun parseChapterDate(dateText: String): Long {
         if (dateText.isEmpty()) return 0L
         return try {
-            dateFormat.parse(dateText)?.time ?: 0L
-        } catch (e: ParseException) {
+            val parsed = ZonedDateTime.parse(dateText, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            parsed.toInstant().toEpochMilli()
+        } catch (e: Exception) {
             0L
         }
     }

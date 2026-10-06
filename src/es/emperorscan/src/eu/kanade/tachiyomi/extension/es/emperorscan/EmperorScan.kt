@@ -94,7 +94,11 @@ class EmperorScan(
             1
         }
 
-        val hasNextPage = currentPage < maxPage
+        val hasNextPage = if (paginationText.isEmpty()) {
+            mangas.size >= 24
+        } else {
+            currentPage < maxPage
+        }
 
         return MangasPage(mangas, hasNextPage)
     }
@@ -116,6 +120,8 @@ class EmperorScan(
     override fun latestUpdatesParse(response: Response): MangasPage = popularMangaParse(response)
 
     override fun searchMangaRequest(page: Int, query: String, filters: FilterList): Request {
+        if (query.isEmpty() && filters.isEmpty()) return popularMangaRequest(page)
+
         val url = "$baseUrl/buscar".toHttpUrl().newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("page", page.toString())

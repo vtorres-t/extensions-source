@@ -209,45 +209,42 @@ class EmperorScan(
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
 
-        val imgElements = document.select("main.reader-pages img, div.reader-area img, div.read-container img")
+        val imgElements = document.select("main.reader-pages img, div.reader-area img, div.read-container img, div#app img")
 
         return imgElements.mapIndexed { index, element ->
             val srcset = element.attr("srcset")
 
-            val imageUrl = if (srcset.isNotEmpty()) {
-                srcset.substringBeforeLast(" ").substringAfterLast(",").trim()
+            var imageUrl = if (srcset.isNotEmpty()) {
+                srcset.substringBefore(" ").trim()
             } else {
-                element.attr("src").ifEmpty {
-                    element.attr("data-src").ifEmpty {
-                        element.attr("data-lazy-src").ifEmpty {
-                            element.attr("data-cdn-src").ifEmpty {
-                                element.attr("real-src")
-                            }
-                        }
-                    }
+                element.attr("src").ifEmpty { element.attr("data-src") }
+            }
+
+            if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
+                val rawSrcset = element.attr("srcset")
+                if (rawSrcset.isNotEmpty()) {
+                    imageUrl = rawSrcset.split(",").first().trim().substringBefore(" ").trim()
                 }
             }
 
             if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
-                throw Exception("No se pudo obtener una URL válida para la página ${index + 1}. Atributos detectados: ${element.attributes()}")
+                return@mapIndexed Page(index, "", "")
             }
 
-            val finalImageUrl = if (srcset.isNotEmpty() && !imageUrl.startsWith("http")) {
-                val baseUrl = response.request.url
-                val port = if (baseUrl.port == 80 || baseUrl.port == 443) "" else ":${baseUrl.port}"
-                "${baseUrl.scheme}://${baseUrl.host}$port${if (imageUrl.startsWith("/")) "" else "/"}$imageUrl"
-            } else if (srcset.isNotEmpty()) {
+            val finalImageUrl = if (imageUrl.startsWith("http")) {
                 imageUrl
             } else {
-                element.attr("abs:src").ifEmpty {
-                    element.attr("abs:data-src").ifEmpty {
-                        element.attr("abs:data-lazy-src").ifEmpty { imageUrl }
+                element.absUrl("srcset").ifEmpty {
+                    element.absUrl("src").ifEmpty {
+                        val baseUrl = response.request.url
+                        val port = if (baseUrl.port == 80 || baseUrl.port == 443) "" else ":${baseUrl.port}"
+                        "${baseUrl.scheme}://${baseUrl.host}$port${if (imageUrl.startsWith("/")) "" else "/"}$imageUrl"
                     }
                 }
             }
 
             Page(index, "", finalImageUrl)
-        }
+        }.filter { it.imageUrl.isNotEmpty() }
     }
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()

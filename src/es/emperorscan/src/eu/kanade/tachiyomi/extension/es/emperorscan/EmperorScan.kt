@@ -213,27 +213,24 @@ class EmperorScan(
         if (imgElements.isEmpty()) return emptyList()
 
         return imgElements.mapIndexed { index, element ->
-            val srcsetAttr: String? = element.attr("srcset")
-            val dataSrcsetAttr: String? = element.attr("data-srcset")
+            val srcsetText = element.attr("srcset").trim()
 
-            var srcsetText = srcsetAttr.orEmpty().trim()
-            if (srcsetText.isEmpty()) {
-                srcsetText = dataSrcsetAttr.orEmpty().trim()
-            }
-
-            val rawUrl = if (srcsetText.contains(",")) {
-                srcsetText.substringBefore(",")
+            val imageUrl = if (srcsetText.isNotEmpty() && srcsetText.contains(",")) {
+                srcsetText.split(",")
+                    .last()
+                    .trim()
+                    .substringBefore(" ") // Quitamos el "800w" sobrante
+            } else if (srcsetText.isNotEmpty()) {
+                srcsetText.substringBefore(" ")
             } else {
-                srcsetText
-            }
-
-            val imageUrl = rawUrl.substringBefore(" ").trim()
+                element.attr("abs:src")
+            }.trim()
 
             if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
-                return@mapIndexed Page(index, "", "")
+                Page(index, "", "")
+            } else {
+                Page(index, "", imageUrl)
             }
-
-            Page(index, "", imageUrl)
         }.filter { it.imageUrl?.isNotEmpty() == true }
     }
 

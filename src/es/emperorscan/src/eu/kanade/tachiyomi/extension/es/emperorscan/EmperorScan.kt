@@ -209,27 +209,31 @@ class EmperorScan(
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
 
-        return document.select("main.reader-pages img, div.reader-area img, div.read-container img").mapIndexed { index, element ->
+        return document.select("main.reader-pages img, div.reader-area img, div.read-container img")
+            .mapIndexed { index, element ->
+                val srcset = element.attr("srcset")
+                val imageUrl = if (srcset.isNotEmpty()) {
+                    srcset.substringBeforeLast(" ").substringAfterLast(",").trim()
+                } else {
+                    element.attr("src").ifEmpty { element.attr("data-src") }
+                }
 
-            val srcset = element.attr("srcset")
-            val imageUrl = if (srcset.isNotEmpty()) {
-                srcset.substringBeforeLast(" ").substringAfterLast(",").trim()
-            } else {
-                element.attr("src").ifEmpty { element.attr("data-src") }
+                if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
+                    throw Exception("No se pudo obtener una URL válida para la página ${index + 1}")
+                }
+
+                val finalImageUrl = if (srcset.isNotEmpty() && !imageUrl.startsWith("http")) {
+                    val baseUrl = response.request.url
+                    val port = if (baseUrl.port == 80 || baseUrl.port == 443) "" else ":${baseUrl.port}"
+                    "${baseUrl.scheme}://${baseUrl.host}$port${if (imageUrl.startsWith("/")) "" else "/"}$imageUrl"
+                } else if (srcset.isNotEmpty()) {
+                    imageUrl
+                } else {
+                    element.attr("abs:src").ifEmpty { element.attr("abs:data-src") }
+                }
+
+                Page(index, "", finalImageUrl)
             }
-
-            if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
-                throw Exception("No se pudo obtener una URL válida para la página ${index + 1}")
-            }
-
-            Page(
-                index,
-                "",
-                element.absUrl(if (srcset.isNotEmpty()) "srcset" else "src").let {
-                    if (srcset.isNotEmpty()) imageUrl else it
-                },
-            )
-        }
     }
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()

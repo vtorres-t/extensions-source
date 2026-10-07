@@ -210,21 +210,47 @@ class EmperorScan(
         val document = response.asJsoup()
 
         val imgElements = document.select("main[data-slot='chapter-enter'] img.w-full, .chapter-enter img.w-full")
+        if (imgElements.isEmpty()) return emptyList()
 
         val urlRegex = """https?://[^\s,]+""".toRegex()
 
-        return imgElements.mapIndexed { index, element ->
+        val pagesFromHtml = imgElements.mapIndexed { index, element ->
             val srcsetAttr: String? = element.attr("srcset")
-            val srcsetText = srcsetAttr.orEmpty()
-            var imageUrl = urlRegex.find(srcsetText)?.value.orEmpty()
+            val imageUrl = urlRegex.find(srcsetAttr.orEmpty())?.value.orEmpty()
 
             if (imageUrl.isEmpty()) {
-                return@mapIndexed Page(index, "", "")
+                Page(index, "", "")
+            } else {
+                Page(index, "", imageUrl)
             }
-
-            Page(index, "", imageUrl)
         }.filter { it.imageUrl?.isNotEmpty() == true }
+
+        if (pagesFromHtml.size > 1) {
+            return pagesFromHtml
+        }
+
+        val scriptElements = document.select("script")
+        for (script in scriptElements) {
+            val scriptHtml = script.html()
+
+            if (scriptHtml.contains("images") || scriptHtml.contains("pages") || scriptHtml.contains("chapter")) {
+                val matches = urlRegex.findAll(scriptHtml).map { it.value }.toList()
+
+                val filteredImageUrls = matches.filter { url ->
+                    url.contains("/img/") || url.contains("/uploads/") || url.contains(".webp") || url.contains(".jpg") || url.contains(".png")
+                }
+
+                if (filteredImageUrls.isNotEmpty()) {
+                    return filteredImageUrls.take(imgElements.size).mapIndexed { index, imageUrl ->
+                        Page(index, "", imageUrl)
+                    }
+                }
+            }
+        }
+
+        return pagesFromHtml
     }
+
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 

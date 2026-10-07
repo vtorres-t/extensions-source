@@ -251,7 +251,6 @@ class EmperorScan(
         return pagesFromHtml
     }
 
-
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {

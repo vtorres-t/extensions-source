@@ -209,46 +209,32 @@ class EmperorScan(
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
 
-        val imgElements = document.select("main[data-slot='chapter-enter'] img.w-full, .chapter-enter img.w-full")
+        val imgElements = document.select("main.reader-pages div.w-full img")
         if (imgElements.isEmpty()) return emptyList()
 
-        val urlRegex = """https?://[^\s,]+""".toRegex()
-
-        val pagesFromHtml = imgElements.mapIndexed { index, element ->
+        return imgElements.mapIndexed { index, element ->
             val srcsetAttr: String? = element.attr("srcset")
-            val imageUrl = urlRegex.find(srcsetAttr.orEmpty())?.value.orEmpty()
+            val dataSrcsetAttr: String? = element.attr("data-srcset")
 
-            if (imageUrl.isEmpty()) {
-                Page(index, "", "")
+            var srcsetText = srcsetAttr.orEmpty().trim()
+            if (srcsetText.isEmpty()) {
+                srcsetText = dataSrcsetAttr.orEmpty().trim()
+            }
+
+            val rawUrl = if (srcsetText.contains(",")) {
+                srcsetText.substringBefore(",")
             } else {
-                Page(index, "", imageUrl)
+                srcsetText
             }
+
+            val imageUrl = rawUrl.substringBefore(" ").trim()
+
+            if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
+                return@mapIndexed Page(index, "", "")
+            }
+
+            Page(index, "", imageUrl)
         }.filter { it.imageUrl?.isNotEmpty() == true }
-
-        if (pagesFromHtml.size > 1) {
-            return pagesFromHtml
-        }
-
-        val scriptElements = document.select("script")
-        for (script in scriptElements) {
-            val scriptHtml = script.html()
-
-            if (scriptHtml.contains("images") || scriptHtml.contains("pages") || scriptHtml.contains("chapter")) {
-                val matches = urlRegex.findAll(scriptHtml).map { it.value }.toList()
-
-                val filteredImageUrls = matches.filter { url ->
-                    url.contains("/img/") || url.contains("/uploads/") || url.contains(".webp") || url.contains(".jpg") || url.contains(".png")
-                }
-
-                if (filteredImageUrls.isNotEmpty()) {
-                    return filteredImageUrls.take(imgElements.size).mapIndexed { index, imageUrl ->
-                        Page(index, "", imageUrl)
-                    }
-                }
-            }
-        }
-
-        return pagesFromHtml
     }
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()

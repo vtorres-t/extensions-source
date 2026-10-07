@@ -208,9 +208,27 @@ class EmperorScan(
 
     override fun pageListParse(response: Response): List<Page> {
         val document = response.asJsoup()
-        return document.select("div.reader-area img, div.read-container img, main img[src*=/img/]").mapIndexed { index, element ->
-            val imageUrl = element.attr("data-src").ifEmpty { element.attr("src") }
-            Page(index, "", element.absUrl(if (element.hasAttr("data-src")) "data-src" else "src"))
+
+        return document.select("main.reader-pages img, div.reader-area img, div.read-container img").mapIndexed { index, element ->
+
+            val srcset = element.attr("srcset")
+            val imageUrl = if (srcset.isNotEmpty()) {
+                srcset.substringBeforeLast(" ").substringAfterLast(",").trim()
+            } else {
+                element.attr("src").ifEmpty { element.attr("data-src") }
+            }
+
+            if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
+                throw Exception("No se pudo obtener una URL válida para la página ${index + 1}")
+            }
+
+            Page(
+                index,
+                "",
+                element.absUrl(if (srcset.isNotEmpty()) "srcset" else "src").let {
+                    if (srcset.isNotEmpty()) imageUrl else it
+                },
+            )
         }
     }
 

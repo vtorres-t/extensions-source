@@ -215,42 +215,14 @@ class EmperorScan(
 
         return imgElements.mapIndexed { index, element ->
             val srcsetAttr: String? = element.attr("srcset")
-            val srcAttr: String? = element.attr("src")
-
             val srcsetText = srcsetAttr.orEmpty()
-            val srcText = srcAttr.orEmpty()
-
             var imageUrl = urlRegex.find(srcsetText)?.value.orEmpty()
-
-            if (imageUrl.isEmpty() && srcText.isNotEmpty() && !srcText.startsWith("data:")) {
-                imageUrl = srcText.trim()
-            }
 
             if (imageUrl.isEmpty()) {
                 return@mapIndexed Page(index, "", "")
             }
 
-            val finalImageUrl = if (imageUrl.startsWith("http")) {
-                imageUrl
-            } else {
-                val absSrcsetAttr: String? = element.absUrl("srcset")
-                val absSrcAttr: String? = element.absUrl("src")
-
-                val absSrcsetUrl = urlRegex.find(absSrcsetAttr.orEmpty())?.value.orEmpty()
-                val absSrcUrl = absSrcAttr.orEmpty()
-
-                if (absSrcsetUrl.isNotEmpty()) {
-                    absSrcsetUrl
-                } else if (absSrcUrl.isNotEmpty() && !absSrcUrl.startsWith("data:")) {
-                    absSrcUrl
-                } else {
-                    val baseUrl = response.request.url
-                    val port = if (baseUrl.port == 80 || baseUrl.port == 443) "" else ":${baseUrl.port}"
-                    "${baseUrl.scheme}://${baseUrl.host}$port${if (imageUrl.startsWith("/")) "" else "/"}$imageUrl"
-                }
-            }
-
-            Page(index, "", finalImageUrl)
+            Page(index, "", imageUrl)
         }.filter { it.imageUrl?.isNotEmpty() == true }
     }
 

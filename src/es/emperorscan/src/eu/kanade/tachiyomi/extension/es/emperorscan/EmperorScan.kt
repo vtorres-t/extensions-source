@@ -223,7 +223,7 @@ class EmperorScan(
             if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
                 val rawSrcset = element.attr("srcset")
                 if (rawSrcset.isNotEmpty()) {
-                    imageUrl = rawSrcset.split(",").first().trim().substringBefore(" ").trim()
+                    imageUrl = rawSrcset.split(",").firstOrNull()?.trim()?.substringBefore(" ")?.trim() ?: ""
                 }
             }
 

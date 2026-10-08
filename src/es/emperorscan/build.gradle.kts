@@ -12,6 +12,6 @@ keiyoushi {
 
     source {
         lang = "es"
-        baseUrl = "https://imperiomanhua.com"
+        baseUrl = "https://imperiomanhwa.com"
     }
 }

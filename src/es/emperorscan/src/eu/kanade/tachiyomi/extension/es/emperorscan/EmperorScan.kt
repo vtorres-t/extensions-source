@@ -219,7 +219,7 @@ class EmperorScan(
                 srcsetText.split(",")
                     .last()
                     .trim()
-                    .substringBefore(" ") // Quitamos el "800w" sobrante
+                    .substringBefore(" ")
             } else if (srcsetText.isNotEmpty()) {
                 srcsetText.substringBefore(" ")
             } else {

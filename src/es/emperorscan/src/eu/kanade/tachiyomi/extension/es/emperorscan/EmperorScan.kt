@@ -223,11 +223,9 @@ class EmperorScan(
                 } else {
                     srcsetText.substringBefore(" ")
                 }
-            }
-            else if (dataSrcText.isNotEmpty()) {
+            } else if (dataSrcText.isNotEmpty()) {
                 dataSrcText
-            }
-            else {
+            } else {
                 srcText
             }.trim()
 
@@ -238,7 +236,6 @@ class EmperorScan(
             }
         }.filter { it.imageUrl.isNullOrEmpty().not() }
     }
-
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 

@@ -214,16 +214,21 @@ class EmperorScan(
 
         return imgElements.mapIndexed { index, element ->
             val srcsetText = element.attr("srcset").trim()
+            val dataSrcText = element.attr("abs:data-src").trim()
+            val srcText = element.attr("abs:src").trim()
 
-            val imageUrl = if (srcsetText.isNotEmpty() && srcsetText.contains(",")) {
-                srcsetText.split(",")
-                    .last()
-                    .trim()
-                    .substringBefore(" ")
-            } else if (srcsetText.isNotEmpty()) {
-                srcsetText.substringBefore(" ")
-            } else {
-                element.attr("abs:src")
+            val imageUrl = if (srcsetText.isNotEmpty()) {
+                if (srcsetText.contains(",")) {
+                    srcsetText.split(",").last().trim().substringBefore(" ")
+                } else {
+                    srcsetText.substringBefore(" ")
+                }
+            }
+            else if (dataSrcText.isNotEmpty()) {
+                dataSrcText
+            }
+            else {
+                srcText
             }.trim()
 
             if (imageUrl.isEmpty() || imageUrl.startsWith("data:")) {
@@ -231,8 +236,9 @@ class EmperorScan(
             } else {
                 Page(index, "", imageUrl)
             }
-        }.filter { it.imageUrl?.isNotEmpty() == true }
+        }.filter { it.imageUrl.isNullOrEmpty().not() }
     }
+
 
     override fun imageUrlParse(response: Response): String = throw UnsupportedOperationException()
 

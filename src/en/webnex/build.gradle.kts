@@ -5,18 +5,17 @@ plugins {
 }
 
 keiyoushi {
-    name = "MangoLibreria"
-    versionCode = 4
+    name = "Webnex"
+    versionCode = 0
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
     source {
-        lang = "es"
-        baseUrl = "https://lectorfenix.com"
-        versionId = 2
+        lang = "en"
+        baseUrl = "https://webnex.cc"
+    }
 
-        deeplink {
-            path("/comics/..*")
-        }
+    deeplink {
+        path("/manga/..*")
     }
 }

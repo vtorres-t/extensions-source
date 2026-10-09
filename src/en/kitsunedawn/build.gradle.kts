@@ -5,17 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "Webnex"
-    versionCode = 1
-    contentWarning = ContentWarning.MIXED
+    name = "Kitsune Dawn"
+    versionCode = 0
+    contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
+    theme = "keyoapp"
 
     source {
+        baseUrl = "https://kitsunedawn.com"
         lang = "en"
-        baseUrl = "https://webnex.cc"
-    }
-
-    deeplink {
-        path("/manga/..*")
     }
 }

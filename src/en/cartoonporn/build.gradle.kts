@@ -5,17 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "Webnex"
-    versionCode = 1
-    contentWarning = ContentWarning.MIXED
+    name = "CartoonPorn"
+    versionCode = 0
+    contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
+    theme = "madara"
 
     source {
         lang = "en"
-        baseUrl = "https://webnex.cc"
-    }
-
-    deeplink {
-        path("/manga/..*")
+        baseUrl = "https://cartoonporn.to"
     }
 }

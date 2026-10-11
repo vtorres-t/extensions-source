@@ -21,6 +21,7 @@ import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.runWebView
+import keiyoushi.utils.stringOrNull
 import keiyoushi.utils.toJsonElement
 import keiyoushi.utils.toJsonString
 import kotlinx.coroutines.CancellationException
@@ -107,6 +108,12 @@ abstract class EmperorScan :
         )
     }
 
+    // Madara-era search results: a post id, with the path in memo
+    override fun getMangaUrl(manga: SManga): String {
+        val path = manga.memo["path"]?.stringOrNull?.takeIf { manga.url.all(Char::isDigit) } ?: manga.url
+        return baseUrl + path
+    }
+
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val document = client.get(getChapterUrl(chapter)).asJsoup()
         val page = document.inertiaPage<JsonElement>()
@@ -129,14 +136,12 @@ abstract class EmperorScan :
         }
     }
 
-    private val readerScript by lazy { javaClass.getResource("/assets/reader.js")!!.readText() }
-
     // One reader WebView at a time
     private val readerMutex = Mutex()
 
     private suspend fun openReader(input: ReaderInput): List<PageDto> = readerMutex.withLock {
         val bridge = "r" + Random.nextLong().toULong().toString(36)
-        val script = "($readerScript)(${input.toJsonString()})" +
+        val script = "(${asset("reader.js")})(${input.toJsonString()})" +
             ".then((pages) => $bridge.post(JSON.stringify({ pages })), (e) => $bridge.post(JSON.stringify({ error: String(e) })))"
         val result = try {
             runWebView<ReaderResult> {
@@ -157,6 +162,8 @@ abstract class EmperorScan :
         result.error?.let { throw IOException(it) }
         result.pages!!
     }
+
+    private fun asset(name: String) = javaClass.getResource("/assets/$name")!!.readText()
 
     override val supportsFilterFetching = true
 

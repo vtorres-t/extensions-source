@@ -6,10 +6,12 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.source.ConfigurableSource
+import eu.kanade.tachiyomi.source.model.SChapter
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
 import okhttp3.OkHttpClient
+import org.jsoup.nodes.Element
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.time.Duration.Companion.seconds
@@ -35,6 +37,14 @@ abstract class TaurusFansub :
         val base = super.chapterListSelector()
         return if (preferences.removePremium) "$base:not(.scheduled)" else base
     }
+
+    override fun chapterFromElement(element: Element, mangaPath: String): SChapter? {
+        val url = element.selectFirst(chapterUrlSelector)?.attr("abs:href")?.takeIf(String::isNotBlank)
+            ?: return null
+        if (!url.startsWith("http", ignoreCase = true)) return null
+        return super.chapterFromElement(element, mangaPath)
+    }
+
     override val filterGenresSelector = ".manga-genres"
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {

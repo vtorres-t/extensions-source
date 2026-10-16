@@ -22,6 +22,9 @@ import keiyoushi.utils.parseAs
 import keiyoushi.utils.stringOrNull
 import keiyoushi.utils.toJsonElement
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -111,54 +114,87 @@ class EmperorScan(
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
 
-        val document = client.get(chapterUrl).asJsoup()
+        // 1. Efectuamos la petición HTTP inicial para obtener la primera página y los metadatos de las dimensiones
+        val responseInicial = client.newCall(eu.kanade.tachiyomi.network.GET(chapterUrl, headers)).execute()
+        val cookies = responseInicial.headers("Set-Cookie").joinToString("; ") { it.substringBefore(";") }
 
-        val pageElement = document.selectFirst("div[data-page], script[data-page=app]")
-            ?: throw IOException("No se encontró el contenedor de datos del lector en el HTML")
+        val document = responseInicial.asJsoup()
+        val page = document.inertiaPage<JsonElement>()
+        if (page.component == "Reader/Locked") return emptyList()
 
-        val rawJsonText = pageElement.attr("data-page").ifEmpty { pageElement.data() }
+        val props = page.props.parseAs<ReaderProps>()
+        val pagesList = props.pages.toMutableList()
 
-        val imageRegex = """"(?:src|srcset)"\s*:\s*"([^"]+)"""".toRegex()
-        val matches = imageRegex.findAll(rawJsonText)
-
-        val cleanUrls = mutableListOf<String>()
-
-        for (match in matches) {
-            val rawValue = match.groupValues[1].replace("\\/", "/")
-
-            if (rawValue.isBlank()) continue
-
-            if (rawValue.contains(" ")) {
-                val candidate = rawValue.split(",")
-                    .map { it.trim() }
-                    .lastOrNull { it.isNotEmpty() }
-                    ?.substringBefore(" ")
-
-                // CORRECCIÓN: Añadido soporte para el nuevo directorio '/img/' del proxy de Imperio Manhwa
-                if (candidate != null && (candidate.contains("/img/") || candidate.contains("/storage/") || candidate.contains("/uploads/"))) {
-                    // Forzamos la desactivación del redimensionador adaptativo cambiando el fit original a 0:0
-                    val highResUrl = candidate.replace(Regex("/rs:fit:[0-9]+:[0-9]+/"), "/rs:fit:0:0/")
-                    cleanUrls.add(highResUrl)
+        // 2. Si el servidor tiene dimensiones pendientes de resolver, forzamos la hidratación parcial
+        if (props.dims.isNotEmpty()) {
+            val readerKeyString = when (val readerJson = props.reader) {
+                is JsonPrimitive -> readerJson.content
+                is JsonObject -> {
+                    val internalElement = readerJson["key"] ?: readerJson["token"] ?: readerJson["hash"]
+                    internalElement?.jsonPrimitive?.content ?: readerJson.toString()
                 }
-            } else {
-                // CORRECCIÓN: Añadido soporte para el nuevo directorio '/img/' en cargas directas 'src'
-                if (rawValue.contains("/img/") || rawValue.contains("/storage/") || rawValue.contains("/uploads/")) {
-                    val highResUrl = rawValue.replace(Regex("/rs:fit:[0-9]+:[0-9]+/"), "/rs:fit:0:0/")
-                    cleanUrls.add(highResUrl)
-                }
+                else -> readerJson.stringOrNull ?: readerJson.toString().trim('"')
+            }
+
+            // Descargamos de forma asíncrona por HTTP puro las páginas restantes pasando las cookies cosechadas
+            val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id, page.version ?: "1.0", cookies)
+
+            if (sealedPages.isNotEmpty()) {
+                val existingIndices = pagesList.map { it.n }.toSet()
+                val newPages = sealedPages.filterNot { it.n in existingIndices }.sortedBy { it.n }
+                pagesList.addAll(newPages)
             }
         }
 
-        val finalUrls = cleanUrls.distinct().toList()
+        if (pagesList.isEmpty()) throw IOException("No se encontraron páginas en este capítulo")
 
-        if (finalUrls.isEmpty()) {
-            throw IOException("No se pudieron extraer las imágenes del capítulo mediante el extractor adaptativo")
-        }
-
-        return finalUrls.mapIndexed { index, imageUrlString ->
+        // 3. Mapeamos las URLs limpiando el reescalado '/rs:fit/' del proxy dinámico de Imperio Manhwa
+        return pagesList.mapIndexed { index, pageDto ->
+            var imageUrlString = pageDto.imageUrl
+            if (imageUrlString.contains("/img/")) {
+                imageUrlString = imageUrlString.replace(Regex("/rs:fit:[0-9]+:[0-9]+/"), "/rs:fit:0:0/")
+            }
             val imageUrl = imageUrlString.toHttpUrl()
             if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")
             Page(index, imageUrl = imageUrl.toString())
+        }
+    }
+
+    private suspend fun fetchManifestNativamente(
+        chapterUrl: String,
+        readerKey: String,
+        chapterId: Int,
+        inertiaVersion: String,
+        cookies: String,
+    ): List<PageDto> {
+        // Configuramos la cabecera parcial de componente apuntando estrictamente a "Chapter" tal como exige la SPA
+        val manifestHeaders = headersBuilder()
+            .add("Accept", "application/json")
+            .add("X-Inertia", "true")
+            .add("X-Inertia-Version", inertiaVersion)
+            .add("X-Inertia-Partial-Component", "Chapter")
+            .add("X-Inertia-Partial-Data", "pages,reader")
+            .add("Referer", chapterUrl)
+            .apply {
+                if (cookies.isNotEmpty()) {
+                    add("Cookie", cookies)
+                }
+            }
+            .build()
+
+        val apiUrl = chapterUrl.toHttpUrl().newBuilder()
+            .addQueryParameter("reader", readerKey)
+            .addQueryParameter("id", chapterId.toString())
+            .build()
+
+        return try {
+            val response = client.get(apiUrl, manifestHeaders)
+            val jsonText = response.body.string()
+            val jsonResponse = jsonText.parseAs<InertiaResponseDto>()
+
+            jsonResponse.props.pages
+        } catch (e: Exception) {
+            throw IOException("Error al intentar obtener el manifiesto de páginas sin WebView: ${e.message}", e)
         }
     }
 

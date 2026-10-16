@@ -22,9 +22,6 @@ import keiyoushi.utils.parseAs
 import keiyoushi.utils.stringOrNull
 import keiyoushi.utils.toJsonElement
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -34,12 +31,11 @@ import java.io.IOException
 @Source
 class EmperorScan(
     override val id: Long,
+    override val name: String,
     override val lang: String,
+    override val baseUrl: String,
 ) : KeiSource(),
     ConfigurableSource {
-
-    override val name = "Emperor Scan"
-    override val baseUrl = "https://imperiomanhwa.com"
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
@@ -115,68 +111,36 @@ class EmperorScan(
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
 
+        // 1. Descargamos el HTML de Imperio Manhwa de forma nativa por HTTP puro
         val document = client.get(chapterUrl).asJsoup()
-        val page = document.inertiaPage<JsonElement>()
-        if (page.component == "Reader/Locked") return emptyList()
 
-        val props = page.props.parseAs<ReaderProps>()
-        val pagesList = props.pages.toMutableList()
+        // 2. Localizamos el contenedor de hidratación de Inertia donde viaja el JSON de datos
+        val pageElement = document.selectFirst("div[data-page], script[data-page]")
+            ?: throw IOException("No se encontró el contenedor de datos del lector en el HTML")
 
-        if (props.dims.isNotEmpty()) {
-            val readerKeyString = when (props.reader) {
-                is JsonPrimitive -> props.reader.content
-                is JsonObject -> {
-                    val internalElement = props.reader["key"] ?: props.reader["token"] ?: props.reader["hash"]
-                    internalElement?.jsonPrimitive?.content ?: props.reader.toString()
-                }
-                else -> props.reader.toString().trim('"')
-            }
+        val rawJsonText = pageElement.attr("data-page").ifEmpty { pageElement.data() }
 
-            val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id)
+        // 3. EXPRESIÓN REGULAR: Captura todas las propiedades "src" o "imageUrl" del JSON crudo
+        // de un solo golpe, procesando las páginas normales y las selladas al mismo tiempo.
+        val imageRegex = """"(?:src|imageUrl)"\s*:\s*"([^"]+)"""".toRegex()
+        val matches = imageRegex.findAll(rawJsonText)
 
-            if (sealedPages.isNotEmpty()) {
-                val existingIndices = pagesList.map { it.n }.toSet()
+        // 4. Limpieza y filtrado preventivo de las URLs recolectadas
+        val cleanUrls = matches.map { it.groupValues[1] }
+            .map { it.replace("\\/", "/") } // Corregimos barras escapadas del JSON (\/)
+            .filter { it.contains("/storage/") || it.contains("/uploads/") || it.contains(".") }
+            .distinct()
+            .toList()
 
-                val newPages = sealedPages.filterNot { it.n in existingIndices }.sortedBy { it.n }
-                pagesList.addAll(newPages)
-            }
+        if (cleanUrls.isEmpty()) {
+            throw IOException("No se pudieron extraer las imágenes del capítulo mediante el extractor HTTP")
         }
 
-        if (pagesList.isEmpty()) throw IOException("No se encontraron páginas en este capítulo")
-
-        return pagesList.mapIndexed { index, pageDto ->
-            val imageUrl = pageDto.imageUrl.toHttpUrl()
+        // 5. Mapeamos al objeto Page final de Tachiyomi/Mihon comprobando el host
+        return cleanUrls.mapIndexed { index, imageUrlString ->
+            val imageUrl = imageUrlString.toHttpUrl()
             if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")
             Page(index, imageUrl = imageUrl.toString())
-        }
-    }
-
-    private suspend fun fetchManifestNativamente(chapterUrl: String, readerKey: String, chapterId: Int): List<PageDto> {
-        val versionDocument = client.get(chapterUrl).asJsoup()
-        val inertiaPageVersion = versionDocument.inertiaPage<JsonElement>().version ?: "1.0"
-
-        val manifestHeaders = headersBuilder()
-            .add("Accept", "application/json")
-            .add("X-Inertia", "true")
-            .add("X-Inertia-Version", inertiaPageVersion)
-            .add("X-Inertia-Partial-Component", "Reader/Chapter")
-            .add("X-Inertia-Partial-Data", "pages,reader")
-            .add("Referer", chapterUrl)
-            .build()
-
-        val apiUrl = chapterUrl.toHttpUrl().newBuilder()
-            .addQueryParameter("reader", readerKey)
-            .addQueryParameter("id", chapterId.toString())
-            .build()
-
-        return try {
-            val response = client.get(apiUrl, manifestHeaders)
-            val jsonText = response.body.string()
-            val jsonResponse = jsonText.parseAs<InertiaResponseDto>()
-
-            jsonResponse.props.pages
-        } catch (e: Exception) {
-            throw IOException("Error al intentar obtener el manifiesto de páginas sin WebView: ${e.message}", e)
         }
     }
 

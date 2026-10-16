@@ -86,7 +86,6 @@ abstract class EmperorScan :
         props.series.applyTo(manga)
         if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
-        // Dates from the series page, the rest from capitulos.json
         val all = if (props.chaptersPagination.last > 1) {
             client.get(baseHttpUrl.resolve(props.series.url)!!.resolve("capitulos.json")!!).parseAs<ChapterListDto>().items
         } else {
@@ -100,7 +99,6 @@ abstract class EmperorScan :
         )
     }
 
-    // Madara-era search results: a post id, with the path in memo
     override fun getMangaUrl(manga: SManga): String {
         val path = manga.memo["path"]?.stringOrNull?.takeIf { manga.url.all(Char::isDigit) } ?: manga.url
         return baseUrl + path
@@ -109,7 +107,6 @@ abstract class EmperorScan :
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
 
-        // 1. Solicitamos el HTML inicial usando Jsoup para obtener los datos base (Inertia Props)
         val document = client.get(chapterUrl).asJsoup()
         val page = document.inertiaPage<JsonElement>()
         if (page.component == "Reader/Locked") return emptyList()
@@ -117,12 +114,12 @@ abstract class EmperorScan :
         val props = page.props.parseAs<ReaderProps>()
         val pagesList = props.pages.toMutableList()
 
-        // 2. Si existen páginas selladas ('dims'), pedimos el manifiesto directamente por HTTP
         if (props.dims.isNotEmpty()) {
             val inlineCount = props.pages.size
 
-            // Hacemos la llamada HTTP nativa simulando la petición de red que haría fetchManifest
-            val sealedPages = fetchManifestNativamente(chapterUrl, props.reader, props.chapter.id)
+            val readerKeyString = props.reader.stringOrNull ?: props.reader.toString().trim('"')
+
+            val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id)
             val sealedMap = sealedPages.associateBy { it.n }
 
             for (i in (inlineCount + 1)..(inlineCount + props.dims.size)) {
@@ -131,7 +128,6 @@ abstract class EmperorScan :
             }
         }
 
-        // 3. Devolvemos la lista final validando que los hosts correspondan al dominio
         return pagesList.mapIndexed { index, pageDto ->
             val imageUrl = pageDto.imageUrl.toHttpUrl()
             if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")
@@ -140,28 +136,24 @@ abstract class EmperorScan :
     }
 
     private suspend fun fetchManifestNativamente(chapterUrl: String, readerKey: String, chapterId: Int): List<PageDto> {
-        // 1. Configuramos las cabeceras requeridas por el framework Inertia para respuestas JSON
         val manifestHeaders = headersBuilder()
             .add("Accept", "application/json")
-            .add("X-Inertia", "true") // Fuerza al servidor a responder con JSON puro en lugar de HTML
-            .add("X-Inertia-Version", "1.0") // Ajusta según la versión que use el sitio si da error
+            .add("X-Inertia", "true")
+            .add("X-Inertia-Version", "1.0")
             .add("Referer", chapterUrl)
             .build()
 
-        // 2. Apuntamos al endpoint que procesa el lector (usualmente reusando la misma URL del capítulo con parámetros de consulta)
         val apiUrl = chapterUrl.toHttpUrl().newBuilder()
             .addQueryParameter("reader", readerKey)
             .addQueryParameter("id", chapterId.toString())
             .build()
 
-        val request = GET(apiUrl, manifestHeaders)
-
-        // 3. Ejecutamos y deserializamos el payload directamente
         return try {
-            val response = client.newCall(request).execute()
-            val jsonResponse = response.body.string().parseAs<InertiaResponseDto>()
+            val response = client.get(apiUrl, manifestHeaders)
 
-            // Extraemos las páginas calculadas que devolvió el endpoint
+            val jsonText = response.body.string()
+            val jsonResponse = jsonText.parseAs<InertiaResponseDto>()
+
             jsonResponse.props.pages
         } catch (e: Exception) {
             throw IOException("Error al intentar obtener el manifiesto de páginas sin WebView: ${e.message}", e)

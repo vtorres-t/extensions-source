@@ -114,7 +114,7 @@ class EmperorScan(
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
 
-        // 1. Efectuamos la petición HTTP inicial para obtener la primera página y los metadatos de las dimensiones
+        // 1. Petición inicial para capturar cookies de sesión y la estructura base
         val responseInicial = client.newCall(eu.kanade.tachiyomi.network.GET(chapterUrl, headers)).execute()
         val cookies = responseInicial.headers("Set-Cookie").joinToString("; ") { it.substringBefore(";") }
 
@@ -125,7 +125,7 @@ class EmperorScan(
         val props = page.props.parseAs<ReaderProps>()
         val pagesList = props.pages.toMutableList()
 
-        // 2. Si el servidor tiene dimensiones pendientes de resolver, forzamos la hidratación parcial
+        // 2. Si hay páginas selladas (dims), las descargamos usando hidratación parcial HTTP
         if (props.dims.isNotEmpty()) {
             val readerKeyString = when (val readerJson = props.reader) {
                 is JsonPrimitive -> readerJson.content
@@ -136,7 +136,7 @@ class EmperorScan(
                 else -> readerJson.stringOrNull ?: readerJson.toString().trim('"')
             }
 
-            // Descargamos de forma asíncrona por HTTP puro las páginas restantes pasando las cookies cosechadas
+            // Realizamos la llamada HTTP simulando al componente "Chapter"
             val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id, page.version ?: "1.0", cookies)
 
             if (sealedPages.isNotEmpty()) {
@@ -148,7 +148,7 @@ class EmperorScan(
 
         if (pagesList.isEmpty()) throw IOException("No se encontraron páginas en este capítulo")
 
-        // 3. Mapeamos las URLs limpiando el reescalado '/rs:fit/' del proxy dinámico de Imperio Manhwa
+        // 3. Limpiamos las URLs forzando máxima resolución en el proxy /img/ de Imperio Manhwa
         return pagesList.mapIndexed { index, pageDto ->
             var imageUrlString = pageDto.imageUrl
             if (imageUrlString.contains("/img/")) {
@@ -167,7 +167,6 @@ class EmperorScan(
         inertiaVersion: String,
         cookies: String,
     ): List<PageDto> {
-        // Configuramos la cabecera parcial de componente apuntando estrictamente a "Chapter" tal como exige la SPA
         val manifestHeaders = headersBuilder()
             .add("Accept", "application/json")
             .add("X-Inertia", "true")
@@ -232,6 +231,7 @@ class EmperorScan(
     }
 
     companion object {
+
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
     }

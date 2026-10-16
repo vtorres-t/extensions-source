@@ -115,53 +115,68 @@ abstract class EmperorScan :
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val document = client.get(getChapterUrl(chapter)).asJsoup()
+        val chapterUrl = getChapterUrl(chapter)
+
+        // 1. Solicitamos el HTML inicial usando Jsoup para obtener los datos base (Inertia Props)
+        val document = client.get(chapterUrl).asJsoup()
         val page = document.inertiaPage<JsonElement>()
         if (page.component == "Reader/Locked") return emptyList()
 
         val props = page.props.parseAs<ReaderProps>()
-        // Inline first page, then the sealed rest from the site's reader
-        val pages = if (props.dims.isEmpty()) {
-            props.pages
-        } else {
-            val entry = document.selectFirst("script[type=module][src*=/build/assets/]")!!.absUrl("src")
-            val sealed = openReader(ReaderInput(entry, props.reader, props.chapter.id, props.series.slug)).associateBy { it.n }
-            val inline = props.pages.size
-            props.pages + (inline + 1..inline + props.dims.size).map { sealed[it] ?: throw IOException("Page $it missing") }
+        val pagesList = props.pages.toMutableList()
+
+        // 2. Si existen páginas selladas ('dims'), pedimos el manifiesto directamente por HTTP
+        if (props.dims.isNotEmpty()) {
+            val inlineCount = props.pages.size
+
+            // Hacemos la llamada HTTP nativa simulando la petición de red que haría fetchManifest
+            val sealedPages = fetchManifestNativamente(chapterUrl, props.reader, props.chapter.id)
+            val sealedMap = sealedPages.associateBy { it.n }
+
+            for (i in (inlineCount + 1)..(inlineCount + props.dims.size)) {
+                val pageDto = sealedMap[i] ?: throw IOException("Falta la página del lector: $i")
+                pagesList.add(pageDto)
+            }
         }
-        return pages.mapIndexed { index, page ->
-            val imageUrl = page.imageUrl.toHttpUrl()
-            if (imageUrl.host != baseHttpUrl.host) throw IOException("Unexpected image host")
+
+        // 3. Devolvemos la lista final validando que los hosts correspondan al dominio
+        return pagesList.mapIndexed { index, pageDto ->
+            val imageUrl = pageDto.imageUrl.toHttpUrl()
+            if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")
             Page(index, imageUrl = imageUrl.toString())
         }
     }
 
-    // One reader WebView at a time
-    private val readerMutex = Mutex()
+    private suspend fun fetchManifestNativamente(chapterUrl: String, readerKey: String, chapterId: Int): List<PageDto> {
+        // 1. Configuramos las cabeceras requeridas por el framework Inertia para respuestas JSON
+        val manifestHeaders = headersBuilder()
+            .add("Accept", "application/json")
+            .add("X-Inertia", "true") // Fuerza al servidor a responder con JSON puro en lugar de HTML
+            .add("X-Inertia-Version", "1.0") // Ajusta según la versión que use el sitio si da error
+            .add("Referer", chapterUrl)
+            .build()
 
-    private suspend fun openReader(input: ReaderInput): List<PageDto> = readerMutex.withLock {
-        val bridge = "r" + Random.nextLong().toULong().toString(36)
-        val script = "(${asset("reader.js")})(${input.toJsonString()})" +
-            ".then((pages) => $bridge.post(JSON.stringify({ pages })), (e) => $bridge.post(JSON.stringify({ error: String(e) })))"
-        val result = try {
-            runWebView<ReaderResult> {
-                blockImages = true
-                interceptRequest { request ->
-                    val host = request.url.host
-                    if (host == null || host == baseHttpUrl.host) null else WebResourceResponse("text/plain", null, 403, "Blocked", null, ByteArrayInputStream(ByteArray(0)))
-                }
-                jsBridge(bridge) { resolve(it.parseAs()) }
-                onPageFinished { evaluateJs(script) }
-                loadData(baseUrl, "")
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            throw IOException(e.message, e)
+        // 2. Apuntamos al endpoint que procesa el lector (usualmente reusando la misma URL del capítulo con parámetros de consulta)
+        val apiUrl = chapterUrl.toHttpUrl().newBuilder()
+            .addQueryParameter("reader", readerKey)
+            .addQueryParameter("id", chapterId.toString())
+            .build()
+
+        val request = GET(apiUrl, manifestHeaders)
+
+        // 3. Ejecutamos y deserializamos el payload directamente
+        return try {
+            val response = client.newCall(request).execute()
+            val jsonResponse = response.body.string().parseAs<InertiaResponseDto>()
+
+            // Extraemos las páginas calculadas que devolvió el endpoint
+            jsonResponse.props.pages
+        } catch (e: Exception) {
+            throw IOException("Error al intentar obtener el manifiesto de páginas sin WebView: ${e.message}", e)
         }
-        result.error?.let { throw IOException(it) }
-        result.pages!!
     }
+
+
 
     private fun asset(name: String) = javaClass.getResource("/assets/$name")!!.readText()
 

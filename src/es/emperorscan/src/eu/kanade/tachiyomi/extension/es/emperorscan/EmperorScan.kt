@@ -111,52 +111,50 @@ class EmperorScan(
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
 
-        // 1. Descargamos el HTML de Imperio Manhwa de forma nativa por HTTP puro
         val document = client.get(chapterUrl).asJsoup()
 
-        // 2. Localizamos el contenedor de hidratación de Inertia donde viaja el JSON de datos
         val pageElement = document.selectFirst("div[data-page], script[data-page=app]")
             ?: throw IOException("No se encontró el contenedor de datos del lector en el HTML")
 
         val rawJsonText = pageElement.attr("data-page").ifEmpty { pageElement.data() }
 
-        // 3. EXPRESIÓN REGULAR AVANZADA: Captura tanto "src" como "srcset" dentro del JSON crudo
         val imageRegex = """"(?:src|srcset)"\s*:\s*"([^"]+)"""".toRegex()
         val matches = imageRegex.findAll(rawJsonText)
 
         val cleanUrls = mutableListOf<String>()
 
         for (match in matches) {
-            val rawValue = match.groupValues[1].replace("\\/", "/") // Limpiamos barras escapadas del JSON (\/)
+            val rawValue = match.groupValues[1].replace("\\/", "/")
 
             if (rawValue.isBlank()) continue
 
-            // 4. Si es un string de tipo srcset, extraemos la URL de mayor resolución (la última de la lista)
             if (rawValue.contains(" ")) {
                 val candidate = rawValue.split(",")
                     .map { it.trim() }
                     .lastOrNull { it.isNotEmpty() }
-                    ?.substringBefore(" ") // Removemos el descriptor de ancho (ej: 768w)
+                    ?.substringBefore(" ")
 
-                if (candidate != null && (candidate.contains("/storage/") || candidate.contains("/uploads/"))) {
-                    cleanUrls.add(candidate)
+                // CORRECCIÓN: Añadido soporte para el nuevo directorio '/img/' del proxy de Imperio Manhwa
+                if (candidate != null && (candidate.contains("/img/") || candidate.contains("/storage/") || candidate.contains("/uploads/"))) {
+                    // Forzamos la desactivación del redimensionador adaptativo cambiando el fit original a 0:0
+                    val highResUrl = candidate.replace(Regex("/rs:fit:[0-9]+:[0-9]+/"), "/rs:fit:0:0/")
+                    cleanUrls.add(highResUrl)
                 }
             } else {
-                // Es un src directo de una sola imagen (común para la primera página)
-                if (rawValue.contains("/storage/") || rawValue.contains("/uploads/")) {
-                    cleanUrls.add(rawValue)
+                // CORRECCIÓN: Añadido soporte para el nuevo directorio '/img/' en cargas directas 'src'
+                if (rawValue.contains("/img/") || rawValue.contains("/storage/") || rawValue.contains("/uploads/")) {
+                    val highResUrl = rawValue.replace(Regex("/rs:fit:[0-9]+:[0-9]+/"), "/rs:fit:0:0/")
+                    cleanUrls.add(highResUrl)
                 }
             }
         }
 
-        // 5. Removemos duplicados manteniendo el orden de lectura original de las páginas
         val finalUrls = cleanUrls.distinct().toList()
 
         if (finalUrls.isEmpty()) {
             throw IOException("No se pudieron extraer las imágenes del capítulo mediante el extractor adaptativo")
         }
 
-        // 6. Mapeamos al objeto Page final de Tachiyomi/Mihon verificando el host de destino
         return finalUrls.mapIndexed { index, imageUrlString ->
             val imageUrl = imageUrlString.toHttpUrl()
             if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")

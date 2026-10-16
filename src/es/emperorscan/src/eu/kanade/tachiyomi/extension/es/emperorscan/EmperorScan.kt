@@ -120,24 +120,44 @@ class EmperorScan(
 
         val rawJsonText = pageElement.attr("data-page").ifEmpty { pageElement.data() }
 
-        // 3. EXPRESIÓN REGULAR: Captura todas las propiedades "src" o "imageUrl" del JSON crudo
-        // de un solo golpe, procesando las páginas normales y las selladas al mismo tiempo.
-        val imageRegex = """"(?:src|imageUrl)"\s*:\s*"([^"]+)"""".toRegex()
+        // 3. EXPRESIÓN REGULAR AVANZADA: Captura tanto "src" como "srcset" dentro del JSON crudo
+        val imageRegex = """"(?:src|srcset)"\s*:\s*"([^"]+)"""".toRegex()
         val matches = imageRegex.findAll(rawJsonText)
 
-        // 4. Limpieza y filtrado preventivo de las URLs recolectadas
-        val cleanUrls = matches.map { it.groupValues[1] }
-            .map { it.replace("\\/", "/") } // Corregimos barras escapadas del JSON (\/)
-            .filter { it.contains("/storage/") || it.contains("/uploads/") || it.contains(".") }
-            .distinct()
-            .toList()
+        val cleanUrls = mutableListOf<String>()
 
-        if (cleanUrls.isEmpty()) {
-            throw IOException("No se pudieron extraer las imágenes del capítulo mediante el extractor HTTP")
+        for (match in matches) {
+            val rawValue = match.groupValues[1].replace("\\/", "/") // Limpiamos barras escapadas del JSON (\/)
+
+            if (rawValue.isBlank()) continue
+
+            // 4. Si es un string de tipo srcset, extraemos la URL de mayor resolución (la última de la lista)
+            if (rawValue.contains(" ")) {
+                val candidate = rawValue.split(",")
+                    .map { it.trim() }
+                    .lastOrNull { it.isNotEmpty() }
+                    ?.substringBefore(" ") // Removemos el descriptor de ancho (ej: 768w)
+
+                if (candidate != null && (candidate.contains("/storage/") || candidate.contains("/uploads/"))) {
+                    cleanUrls.add(candidate)
+                }
+            } else {
+                // Es un src directo de una sola imagen (común para la primera página)
+                if (rawValue.contains("/storage/") || rawValue.contains("/uploads/")) {
+                    cleanUrls.add(rawValue)
+                }
+            }
         }
 
-        // 5. Mapeamos al objeto Page final de Tachiyomi/Mihon comprobando el host
-        return cleanUrls.mapIndexed { index, imageUrlString ->
+        // 5. Removemos duplicados manteniendo el orden de lectura original de las páginas
+        val finalUrls = cleanUrls.distinct().toList()
+
+        if (finalUrls.isEmpty()) {
+            throw IOException("No se pudieron extraer las imágenes del capítulo mediante el extractor adaptativo")
+        }
+
+        // 6. Mapeamos al objeto Page final de Tachiyomi/Mihon verificando el host de destino
+        return finalUrls.mapIndexed { index, imageUrlString ->
             val imageUrl = imageUrlString.toHttpUrl()
             if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")
             Page(index, imageUrl = imageUrl.toString())

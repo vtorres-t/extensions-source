@@ -146,11 +146,10 @@ class HomeProps(val genres: List<NamedDto>)
 
 @Serializable
 data class InertiaResponseDto(
-    val props: ReaderPropsDto
+    val props: ReaderPropsDto,
 )
 
 @Serializable
 data class ReaderPropsDto(
-    val pages: List<PageDto>
+    val pages: List<PageDto>,
 )
-

@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
-import android.webkit.WebResourceResponse
 import android.widget.Toast
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
@@ -20,21 +19,14 @@ import keiyoushi.utils.firstInstance
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
-import keiyoushi.utils.runWebView
 import keiyoushi.utils.stringOrNull
 import keiyoushi.utils.toJsonElement
-import keiyoushi.utils.toJsonString
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
-import java.io.ByteArrayInputStream
 import java.io.IOException
-import kotlin.random.Random
 
 @Source
 abstract class EmperorScan :
@@ -175,8 +167,6 @@ abstract class EmperorScan :
             throw IOException("Error al intentar obtener el manifiesto de páginas sin WebView: ${e.message}", e)
         }
     }
-
-
 
     private fun asset(name: String) = javaClass.getResource("/assets/$name")!!.readText()
 

@@ -122,8 +122,6 @@ class EmperorScan(
         val pagesList = props.pages.toMutableList()
 
         if (props.dims.isNotEmpty()) {
-            val inlineCount = props.pages.size
-
             val readerKeyString = when (val readerJson = props.reader) {
                 is JsonPrimitive -> readerJson.content
                 is JsonObject -> {

@@ -42,6 +42,7 @@ class EmperorScan(
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
+    // Configuración reglamentaria admitida por la firma final de KeiSource
     override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(3) { it.host == baseHttpUrl.host }
 
     override suspend fun getPopularManga(page: Int) = library(page, "vistas", null)
@@ -114,7 +115,6 @@ class EmperorScan(
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val chapterUrl = getChapterUrl(chapter)
 
-        // 1. Petición inicial para capturar cookies de sesión y la estructura base
         val responseInicial = client.newCall(eu.kanade.tachiyomi.network.GET(chapterUrl, headers)).execute()
         val cookies = responseInicial.headers("Set-Cookie").joinToString("; ") { it.substringBefore(";") }
 
@@ -125,7 +125,6 @@ class EmperorScan(
         val props = page.props.parseAs<ReaderProps>()
         val pagesList = props.pages.toMutableList()
 
-        // 2. Si hay páginas selladas (dims), las descargamos usando hidratación parcial HTTP
         if (props.dims.isNotEmpty()) {
             val readerKeyString = when (val readerJson = props.reader) {
                 is JsonPrimitive -> readerJson.content
@@ -136,7 +135,6 @@ class EmperorScan(
                 else -> readerJson.stringOrNull ?: readerJson.toString().trim('"')
             }
 
-            // Realizamos la llamada HTTP simulando al componente "Chapter"
             val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id, page.version ?: "1.0", cookies)
 
             if (sealedPages.isNotEmpty()) {
@@ -148,7 +146,6 @@ class EmperorScan(
 
         if (pagesList.isEmpty()) throw IOException("No se encontraron páginas en este capítulo")
 
-        // 3. Limpiamos las URLs forzando máxima resolución en el proxy /img/ de Imperio Manhwa
         return pagesList.mapIndexed { index, pageDto ->
             var imageUrlString = pageDto.imageUrl
             if (imageUrlString.contains("/img/")) {
@@ -231,7 +228,6 @@ class EmperorScan(
     }
 
     companion object {
-
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
     }

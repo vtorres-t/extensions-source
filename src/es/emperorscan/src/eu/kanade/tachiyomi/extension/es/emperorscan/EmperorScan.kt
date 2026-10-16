@@ -22,6 +22,9 @@ import keiyoushi.utils.parseAs
 import keiyoushi.utils.stringOrNull
 import keiyoushi.utils.toJsonElement
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -122,7 +125,16 @@ class EmperorScan(
         if (props.dims.isNotEmpty()) {
             val inlineCount = props.pages.size
 
-            val readerKeyString = props.reader.stringOrNull ?: props.reader.toString().trim('"')
+            // EXTRACCIÓN BLINDADA: Evitamos usar smart-casting de Primitivos directamente para que kotlinx no crashee
+            val readerKeyString = when (props.reader) {
+                is JsonPrimitive -> props.reader.content
+                is JsonObject -> {
+                    // Si Imperio Manhwa envía un objeto estructurado, buscamos de manera segura las claves comunes sin romper el hilo
+                    val internalElement = props.reader["key"] ?: props.reader["token"] ?: props.reader["hash"]
+                    internalElement?.jsonPrimitive?.content ?: props.reader.toString()
+                }
+                else -> props.reader.toString().trim('"')
+            }
 
             val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id)
             val sealedMap = sealedPages.associateBy { it.n }

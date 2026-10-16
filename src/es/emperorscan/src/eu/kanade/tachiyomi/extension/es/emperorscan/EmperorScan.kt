@@ -123,13 +123,9 @@ class EmperorScan(
         val pagesList = props.pages.toMutableList()
 
         if (props.dims.isNotEmpty()) {
-            val inlineCount = props.pages.size
-
-            // EXTRACCIÓN BLINDADA: Evitamos usar smart-casting de Primitivos directamente para que kotlinx no crashee
             val readerKeyString = when (props.reader) {
                 is JsonPrimitive -> props.reader.content
                 is JsonObject -> {
-                    // Si Imperio Manhwa envía un objeto estructurado, buscamos de manera segura las claves comunes sin romper el hilo
                     val internalElement = props.reader["key"] ?: props.reader["token"] ?: props.reader["hash"]
                     internalElement?.jsonPrimitive?.content ?: props.reader.toString()
                 }
@@ -137,13 +133,16 @@ class EmperorScan(
             }
 
             val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id)
-            val sealedMap = sealedPages.associateBy { it.n }
 
-            for (i in (inlineCount + 1)..(inlineCount + props.dims.size)) {
-                val pageDto = sealedMap[i] ?: throw IOException("Falta la página del lector: $i")
-                pagesList.add(pageDto)
+            if (sealedPages.isNotEmpty()) {
+                val existingIndices = pagesList.map { it.n }.toSet()
+
+                val newPages = sealedPages.filterNot { it.n in existingIndices }.sortedBy { it.n }
+                pagesList.addAll(newPages)
             }
         }
+
+        if (pagesList.isEmpty()) throw IOException("No se encontraron páginas en este capítulo")
 
         return pagesList.mapIndexed { index, pageDto ->
             val imageUrl = pageDto.imageUrl.toHttpUrl()

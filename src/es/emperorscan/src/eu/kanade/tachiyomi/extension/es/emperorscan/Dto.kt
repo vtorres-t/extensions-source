@@ -9,25 +9,26 @@ import kotlinx.serialization.json.JsonElement
 import kotlin.time.Instant
 
 @Serializable
-class InertiaPage<T>(
+data class InertiaPage<T>(
     val component: String,
     val props: T,
+    val version: String? = null, // Captura de manera nativa el token dinámico del sitio web
 )
 
 @Serializable
-class ListingProps(
+data class ListingProps(
     val series: List<MangaDto>,
     val pagination: PaginationDto,
 )
 
 @Serializable
-class PaginationDto(val next: String?)
+data class PaginationDto(val next: String?)
 
 @Serializable
-class MangaDto(
-    private val url: String,
-    private val title: String,
-    private val cover: String?,
+data class MangaDto(
+    val url: String,
+    val title: String,
+    val cover: String?,
 ) {
     fun toSManga() = SManga.create().apply {
         url = this@MangaDto.url
@@ -37,24 +38,24 @@ class MangaDto(
 }
 
 @Serializable
-class SeriesProps(
+data class SeriesProps(
     val series: SeriesDto,
     val chapters: List<ChapterDto>,
     @SerialName("chapters_pagination") val chaptersPagination: ChaptersPaginationDto,
 )
 
 @Serializable
-class SeriesDto(
+data class SeriesDto(
     val url: String,
-    private val title: String,
-    private val type: String?,
-    private val status: String?,
-    @SerialName("cover_canonical") private val cover: String?,
-    @SerialName("alt_titles") private val altTitles: List<String>,
-    private val synopsis: String?,
-    private val genres: List<NamedDto>,
-    private val authors: List<NamedDto>,
-    private val artists: List<NamedDto>,
+    val title: String,
+    val type: String?,
+    val status: String?,
+    @SerialName("cover_canonical") val cover: String?,
+    @SerialName("alt_titles") val altTitles: List<String>,
+    val synopsis: String?,
+    val genres: List<NamedDto>,
+    val authors: List<NamedDto>,
+    val artists: List<NamedDto>,
 ) {
     fun applyTo(manga: SManga) = manga.apply {
         title = this@SeriesDto.title
@@ -80,19 +81,19 @@ class SeriesDto(
 }
 
 @Serializable
-class NamedDto(val slug: String, val name: String)
+data class NamedDto(val slug: String, val name: String)
 
 @Serializable
-class ChaptersPaginationDto(val last: Int)
+data class ChaptersPaginationDto(val last: Int)
 
 @Serializable
-class ChapterListDto(val items: List<ChapterDto>)
+data class ChapterListDto(val items: List<ChapterDto>)
 
 @Serializable
-class ChapterDto(
+data class ChapterDto(
     val slug: String,
-    private val label: String,
-    @SerialName("published_at") private val publishedAt: String? = null,
+    val label: String,
+    @SerialName("published_at") val publishedAt: String? = null,
     val locked: Boolean,
 ) {
     fun toSChapter(seriesUrl: String) = SChapter.create().apply {
@@ -103,7 +104,7 @@ class ChapterDto(
 }
 
 @Serializable
-class ReaderProps(
+data class ReaderProps(
     val chapter: ReaderChapterDto,
     val series: ReaderSeriesDto,
     val pages: List<PageDto>,
@@ -112,23 +113,23 @@ class ReaderProps(
 )
 
 @Serializable
-class ReaderChapterDto(val id: Int)
+data class ReaderChapterDto(val id: Int)
 
 @Serializable
-class ReaderSeriesDto(val slug: String)
+data class ReaderSeriesDto(val slug: String)
 
 @Serializable
-class PageDto(
+data class PageDto(
     val n: Int,
-    private val src: String?,
-    private val srcset: String,
+    val src: String? = null,
+    val srcset: String,
 ) {
     /** Full-size image, else the widest srcset entry */
     val imageUrl get() = src ?: srcset.split(", ").last().substringBefore(' ')
 }
 
 @Serializable
-class ReaderInput(
+data class ReaderInput(
     val entry: String,
     val reader: JsonElement,
     val chapterId: Int,
@@ -136,13 +137,13 @@ class ReaderInput(
 )
 
 @Serializable
-class ReaderResult(
+data class ReaderResult(
     val pages: List<PageDto>? = null,
     val error: String? = null,
 )
 
 @Serializable
-class HomeProps(val genres: List<NamedDto>)
+data class HomeProps(val genres: List<NamedDto>)
 
 @Serializable
 data class InertiaResponseDto(

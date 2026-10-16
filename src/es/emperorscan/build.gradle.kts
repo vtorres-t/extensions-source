@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "Emperor Scan"
-    versionCode = 70
+    versionCode = 71
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 

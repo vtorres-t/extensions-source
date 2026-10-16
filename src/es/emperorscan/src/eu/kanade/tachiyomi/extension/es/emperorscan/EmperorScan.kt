@@ -29,13 +29,18 @@ import org.jsoup.nodes.Document
 import java.io.IOException
 
 @Source
-abstract class EmperorScan :
-    KeiSource(),
+class EmperorScan(
+    override val id: Long,
+    override val lang: String,
+) : KeiSource(),
     ConfigurableSource {
+
+    override val name = "Emperor Scan"
+    override val baseUrl = "https://imperiomanhwa.com"
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
-    override fun OkHttpClient.Builder.configureClient() = rateLimit(2) { it.host == baseHttpUrl.host }
+    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(3) { it.host == baseHttpUrl.host }
 
     override suspend fun getPopularManga(page: Int) = library(page, "vistas", null)
 
@@ -136,10 +141,15 @@ abstract class EmperorScan :
     }
 
     private suspend fun fetchManifestNativamente(chapterUrl: String, readerKey: String, chapterId: Int): List<PageDto> {
+        val versionDocument = client.get(chapterUrl).asJsoup()
+        val inertiaPageVersion = versionDocument.inertiaPage<JsonElement>().version ?: "1.0"
+
         val manifestHeaders = headersBuilder()
             .add("Accept", "application/json")
             .add("X-Inertia", "true")
-            .add("X-Inertia-Version", "1.0")
+            .add("X-Inertia-Version", inertiaPageVersion)
+            .add("X-Inertia-Partial-Component", "Reader/Chapter")
+            .add("X-Inertia-Partial-Data", "pages,reader")
             .add("Referer", chapterUrl)
             .build()
 
@@ -150,7 +160,6 @@ abstract class EmperorScan :
 
         return try {
             val response = client.get(apiUrl, manifestHeaders)
-
             val jsonText = response.body.string()
             val jsonResponse = jsonText.parseAs<InertiaResponseDto>()
 

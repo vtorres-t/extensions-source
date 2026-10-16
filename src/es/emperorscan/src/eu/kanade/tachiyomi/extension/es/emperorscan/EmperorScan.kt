@@ -160,8 +160,6 @@ abstract class EmperorScan :
         }
     }
 
-    private fun asset(name: String) = javaClass.getResource("/assets/$name")!!.readText()
-
     override val supportsFilterFetching = true
 
     override suspend fun fetchFilterData(): JsonElement = client.get(baseUrl).asJsoup().inertiaPage<HomeProps>().props.genres.toJsonElement()

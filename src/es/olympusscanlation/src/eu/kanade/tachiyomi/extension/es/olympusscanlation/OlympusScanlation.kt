@@ -23,6 +23,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 
 @Source
@@ -30,19 +32,16 @@ abstract class OlympusScanlation :
     KeiSource(),
     ConfigurableSource {
 
-    private var domainAlreadyFetched = false
-
     private fun fetchedDomainUrl() {
-        if (!preferences.fetchDomainPref() || domainAlreadyFetched) return
+        if (!preferences.fetchDomainPref()) return
         try {
             val initClient = network.client
             val document = initClient.newCall(GET("https://olympus.pages.dev", headers)).execute().asJsoup()
-            val domain = document.selectFirst("meta[property=og:url]")?.attr("content") ?: return
+            val domain = document.selectFirst("meta[property=og:url]")?.attr("content")
+                ?: return
             val host = initClient.newCall(GET(domain, headers)).execute().request.url.host
             val newDomain = "https://$host"
-
             preferences.edit().putString(BASE_URL_PREF, newDomain).apply()
-            domainAlreadyFetched = true
         } catch (_: Exception) {
             return
         }
@@ -78,46 +77,57 @@ abstract class OlympusScanlation :
         lastFetchTime = now
 
         val newSlugMap = comics.associate { it.id to it.slug }
-        preferences.slugMap = preferences.slugMap + newSlugMap
+
+        preferences.slugMap += newSlugMap
     }
 
     override suspend fun getPopularManga(page: Int): MangasPage {
         fetchSeriesList()
         val result = client.get("$baseUrl/api/rankings?page=$page&period=total_ranking").parseAs<RankingDto>()
-
-        val comicItems = result.data.filter { it.type == "comic" }
-
-        val newSlugs = comicItems.associate { it.id to it.slug }
-        preferences.slugMap = preferences.slugMap + newSlugs
-
-        val mangaList = comicItems.map { it.toSManga() }
+        val slugMap = preferences.slugMap.toMutableMap()
+        val mangaList = result.data
+            .filter { it.type == "comic" }
+            .map {
+                slugMap[it.id] = it.slug
+                it.toSManga()
+            }
+        preferences.slugMap = slugMap
         return MangasPage(mangaList, hasNextPage = result.hasNextPage())
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage {
         fetchSeriesList()
         val result = client.get("$baseUrl/api/new-chapters?page=$page").parseAs<NewChaptersDto>()
-
-        val comicItems = result.data.filter { it.type == "comic" }
-
-        val newSlugs = comicItems.associate { it.id to it.slug }
-        preferences.slugMap = preferences.slugMap + newSlugs
-
-        val mangaList = comicItems.map { it.toSManga() }
+        val slugMap = preferences.slugMap.toMutableMap()
+        val mangaList = result.data.filter { it.type == "comic" }
+            .map {
+                slugMap[it.id] = it.slug
+                it.toSManga()
+            }
+        preferences.slugMap = slugMap
         return MangasPage(mangaList, result.hasNextPage())
     }
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         fetchSeriesList()
         val filteredList = seriesList.filter { it.name.contains(query, ignoreCase = true) }
-        val paginatedList = filteredList.drop((page - 1) * PAGE_SIZE).take(PAGE_SIZE)
-        val hasNextPage = page * PAGE_SIZE < filteredList.size
+        val paginatedList = filteredList.drop((page - 1) * 20).take(20)
+        val hasNextPage = page * 20 < filteredList.size
         return MangasPage(paginatedList.map { it.toSManga() }, hasNextPage)
     }
 
     override fun getMangaUrl(manga: SManga): String {
         val slug = preferences.slugMap[manga.url.toInt()]!!
         return "$baseUrl/series/comic-$slug"
+    }
+
+    override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
+        if (url.host != baseUrl.toHttpUrl().host || url.pathSegments.firstOrNull() != "series") return null
+        val series = url.pathSegments.getOrNull(1)?.takeIf { it.startsWith("comic-") } ?: return null
+        val slug = series.removePrefix("comic-").takeIf(String::isNotBlank) ?: return null
+        val manga = client.get("$baseUrl/api/series/$slug?type=comic").parseAs<MangaDetailDto>().data
+        preferences.slugMap += manga.id to manga.slug
+        return manga.toSMangaDetails()
     }
 
     override suspend fun fetchMangaUpdate(
@@ -206,7 +216,6 @@ abstract class OlympusScanlation :
 
         private const val SLUG_MAP = "slugMap"
 
-        private const val CACHE_DURATION_MS = 3 * 60 * 60 * 1000L // 3 hour
-        private const val PAGE_SIZE = 20
+        private const val CACHE_DURATION_MS = 60 * 60 * 1000L // 1 hour
     }
 }

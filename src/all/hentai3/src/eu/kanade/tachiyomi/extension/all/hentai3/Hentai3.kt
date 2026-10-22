@@ -32,7 +32,33 @@ abstract class Hentai3 :
         get() = when (lang) {
             "all" -> ""
             "en" -> "english"
+<<<<<<< HEAD
             "es" -> "spanish"
+=======
+            "ja" -> "japanese"
+            "ko" -> "korean"
+            "zh" -> "chinese"
+            "es" -> "spanish"
+            "pt" -> "Portuguese"
+            "id" -> "indonesian"
+            "jv" -> "javanese"
+            "tl" -> "tagalog"
+            "vi" -> "vietnamese"
+            "th" -> "thai"
+            "my" -> "burmese"
+            "tr" -> "turkish"
+            "ru" -> "russian"
+            "uk" -> "ukrainian"
+            "pl" -> "polish"
+            "de" -> "german"
+            "it" -> "italian"
+            "fr" -> "french"
+            "nl" -> "dutch"
+            "cs" -> "czech"
+            "hu" -> "hungarian"
+            "bg" -> "bulgarian"
+            "is" -> "icelandic"
+>>>>>>> upstream/main
             "la" -> "latin"
             else -> ""
         }

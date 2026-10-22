@@ -33,7 +33,13 @@ abstract class PandaChaika : KeiSource() {
     private val searchLang: String
         get() = when (lang) {
             "en" -> "english"
+<<<<<<< HEAD
             "es" -> "spanish"
+=======
+            "zh" -> "chinese"
+            "ja" -> "japanese"
+            "id" -> "indonesian"
+>>>>>>> upstream/main
             else -> ""
         }
 

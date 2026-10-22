@@ -9,26 +9,25 @@ import kotlinx.serialization.json.JsonElement
 import kotlin.time.Instant
 
 @Serializable
-data class InertiaPage<T>(
+class InertiaPage<T>(
     val component: String,
     val props: T,
-    val version: String? = null, // Captura de manera nativa el token dinámico del sitio web
 )
 
 @Serializable
-data class ListingProps(
+class ListingProps(
     val series: List<MangaDto>,
     val pagination: PaginationDto,
 )
 
 @Serializable
-data class PaginationDto(val next: String?)
+class PaginationDto(val next: String?)
 
 @Serializable
-data class MangaDto(
-    val url: String,
-    val title: String,
-    val cover: String?,
+class MangaDto(
+    private val url: String,
+    private val title: String,
+    private val cover: String?,
 ) {
     fun toSManga() = SManga.create().apply {
         url = this@MangaDto.url
@@ -38,24 +37,24 @@ data class MangaDto(
 }
 
 @Serializable
-data class SeriesProps(
+class SeriesProps(
     val series: SeriesDto,
     val chapters: List<ChapterDto>,
     @SerialName("chapters_pagination") val chaptersPagination: ChaptersPaginationDto,
 )
 
 @Serializable
-data class SeriesDto(
+class SeriesDto(
     val url: String,
-    val title: String,
-    val type: String?,
-    val status: String?,
-    @SerialName("cover_canonical") val cover: String?,
-    @SerialName("alt_titles") val altTitles: List<String>,
-    val synopsis: String?,
-    val genres: List<NamedDto>,
-    val authors: List<NamedDto>,
-    val artists: List<NamedDto>,
+    private val title: String,
+    private val type: String?,
+    private val status: String?,
+    @SerialName("cover_canonical") private val cover: String?,
+    @SerialName("alt_titles") private val altTitles: List<String>,
+    private val synopsis: String?,
+    private val genres: List<NamedDto>,
+    private val authors: List<NamedDto>,
+    private val artists: List<NamedDto>,
 ) {
     fun applyTo(manga: SManga) = manga.apply {
         title = this@SeriesDto.title
@@ -81,19 +80,19 @@ data class SeriesDto(
 }
 
 @Serializable
-data class NamedDto(val slug: String, val name: String)
+class NamedDto(val slug: String, val name: String)
 
 @Serializable
-data class ChaptersPaginationDto(val last: Int)
+class ChaptersPaginationDto(val last: Int)
 
 @Serializable
-data class ChapterListDto(val items: List<ChapterDto>)
+class ChapterListDto(val items: List<ChapterDto>)
 
 @Serializable
-data class ChapterDto(
+class ChapterDto(
     val slug: String,
-    val label: String,
-    @SerialName("published_at") val publishedAt: String? = null,
+    private val label: String,
+    @SerialName("published_at") private val publishedAt: String? = null,
     val locked: Boolean,
 ) {
     fun toSChapter(seriesUrl: String) = SChapter.create().apply {
@@ -104,7 +103,7 @@ data class ChapterDto(
 }
 
 @Serializable
-data class ReaderProps(
+class ReaderProps(
     val chapter: ReaderChapterDto,
     val series: ReaderSeriesDto,
     val pages: List<PageDto>,
@@ -113,23 +112,23 @@ data class ReaderProps(
 )
 
 @Serializable
-data class ReaderChapterDto(val id: Int)
+class ReaderChapterDto(val id: Int)
 
 @Serializable
-data class ReaderSeriesDto(val slug: String)
+class ReaderSeriesDto(val slug: String)
 
 @Serializable
-data class PageDto(
+class PageDto(
     val n: Int,
-    val src: String? = null,
-    val srcset: String,
+    private val src: String?,
+    private val srcset: String,
 ) {
     /** Full-size image, else the widest srcset entry */
     val imageUrl get() = src ?: srcset.split(", ").last().substringBefore(' ')
 }
 
 @Serializable
-data class ReaderInput(
+class ReaderInput(
     val entry: String,
     val reader: JsonElement,
     val chapterId: Int,
@@ -137,20 +136,10 @@ data class ReaderInput(
 )
 
 @Serializable
-data class ReaderResult(
+class ReaderResult(
     val pages: List<PageDto>? = null,
     val error: String? = null,
 )
 
 @Serializable
-data class HomeProps(val genres: List<NamedDto>)
-
-@Serializable
-data class InertiaResponseDto(
-    val props: ReaderPropsDto,
-)
-
-@Serializable
-data class ReaderPropsDto(
-    val pages: List<PageDto>,
-)
+class HomeProps(val genres: List<NamedDto>)

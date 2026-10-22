@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.extension.es.emperorscan
 
+import android.webkit.WebResourceResponse
 import android.widget.Toast
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
@@ -19,31 +20,30 @@ import keiyoushi.utils.firstInstance
 import keiyoushi.utils.firstInstanceOrNull
 import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
+import keiyoushi.utils.runWebView
 import keiyoushi.utils.stringOrNull
 import keiyoushi.utils.toJsonElement
+import keiyoushi.utils.toJsonString
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
+import java.io.ByteArrayInputStream
 import java.io.IOException
+import kotlin.random.Random
 
 @Source
-class EmperorScan(
-    override val id: Long,
-    override val name: String,
-    override val lang: String,
-    override val baseUrl: String,
-) : KeiSource(),
+abstract class EmperorScan :
+    KeiSource(),
     ConfigurableSource {
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
-    // Configuración reglamentaria admitida por la firma final de KeiSource
-    override fun OkHttpClient.Builder.configureClient(): OkHttpClient.Builder = rateLimit(3) { it.host == baseHttpUrl.host }
+    override fun OkHttpClient.Builder.configureClient() = rateLimit(2) { it.host == baseHttpUrl.host }
 
     override suspend fun getPopularManga(page: Int) = library(page, "vistas", null)
 
@@ -94,6 +94,7 @@ class EmperorScan(
         props.series.applyTo(manga)
         if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
+        // Dates from the series page, the rest from capitulos.json
         val all = if (props.chaptersPagination.last > 1) {
             client.get(baseHttpUrl.resolve(props.series.url)!!.resolve("capitulos.json")!!).parseAs<ChapterListDto>().items
         } else {
@@ -107,92 +108,62 @@ class EmperorScan(
         )
     }
 
+    // Madara-era search results: a post id, with the path in memo
     override fun getMangaUrl(manga: SManga): String {
         val path = manga.memo["path"]?.stringOrNull?.takeIf { manga.url.all(Char::isDigit) } ?: manga.url
         return baseUrl + path
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val chapterUrl = getChapterUrl(chapter)
-
-        val responseInicial = client.newCall(eu.kanade.tachiyomi.network.GET(chapterUrl, headers)).execute()
-        val cookies = responseInicial.headers("Set-Cookie").joinToString("; ") { it.substringBefore(";") }
-
-        val document = responseInicial.asJsoup()
+        val document = client.get(getChapterUrl(chapter)).asJsoup()
         val page = document.inertiaPage<JsonElement>()
         if (page.component == "Reader/Locked") return emptyList()
 
         val props = page.props.parseAs<ReaderProps>()
-        val pagesList = props.pages.toMutableList()
-
-        if (props.dims.isNotEmpty()) {
-            val readerKeyString = when (val readerJson = props.reader) {
-                is JsonPrimitive -> readerJson.content
-                is JsonObject -> {
-                    val internalElement = readerJson["key"] ?: readerJson["token"] ?: readerJson["hash"]
-                    internalElement?.jsonPrimitive?.content ?: readerJson.toString()
-                }
-                else -> readerJson.stringOrNull ?: readerJson.toString().trim('"')
-            }
-
-            val sealedPages = fetchManifestNativamente(chapterUrl, readerKeyString, props.chapter.id, page.version ?: "1.0", cookies)
-
-            if (sealedPages.isNotEmpty()) {
-                val existingIndices = pagesList.map { it.n }.toSet()
-                val newPages = sealedPages.filterNot { it.n in existingIndices }.sortedBy { it.n }
-                pagesList.addAll(newPages)
-            }
+        // Inline first page, then the sealed rest from the site's reader
+        val pages = if (props.dims.isEmpty()) {
+            props.pages
+        } else {
+            val entry = document.selectFirst("script[type=module][src*=/build/assets/]")!!.absUrl("src")
+            val sealed = openReader(ReaderInput(entry, props.reader, props.chapter.id, props.series.slug)).associateBy { it.n }
+            val inline = props.pages.size
+            props.pages + (inline + 1..inline + props.dims.size).map { sealed[it] ?: throw IOException("Page $it missing") }
         }
-
-        if (pagesList.isEmpty()) throw IOException("No se encontraron páginas en este capítulo")
-
-        return pagesList.mapIndexed { index, pageDto ->
-            var imageUrlString = pageDto.imageUrl
-            if (imageUrlString.contains("/img/")) {
-                imageUrlString = imageUrlString.replace(Regex("/rs:fit:[0-9]+:[0-9]+/"), "/rs:fit:0:0/")
-            }
-            val imageUrl = imageUrlString.toHttpUrl()
-            if (imageUrl.host != baseHttpUrl.host) throw IOException("Host de imagen inesperado: ${imageUrl.host}")
+        return pages.mapIndexed { index, page ->
+            val imageUrl = page.imageUrl.toHttpUrl()
+            if (imageUrl.host != baseHttpUrl.host) throw IOException("Unexpected image host")
             Page(index, imageUrl = imageUrl.toString())
         }
     }
 
-    private suspend fun fetchManifestNativamente(
-        chapterUrl: String,
-        readerKey: String,
-        chapterId: Int,
-        inertiaVersion: String,
-        cookies: String,
-    ): List<PageDto> {
-        val manifestHeaders = headersBuilder()
-            .add("Accept", "application/json")
-            .add("X-Inertia", "true")
-            .add("X-Inertia-Version", inertiaVersion)
-            .add("X-Inertia-Partial-Component", "Chapter")
-            .add("X-Inertia-Partial-Data", "pages,reader")
-            .add("Referer", chapterUrl)
-            .apply {
-                if (cookies.isNotEmpty()) {
-                    add("Cookie", cookies)
+    // One reader WebView at a time
+    private val readerMutex = Mutex()
+
+    private suspend fun openReader(input: ReaderInput): List<PageDto> = readerMutex.withLock {
+        val bridge = "r" + Random.nextLong().toULong().toString(36)
+        val script = "(${asset("reader.js")})(${input.toJsonString()})" +
+            ".then((pages) => $bridge.post(JSON.stringify({ pages })), (e) => $bridge.post(JSON.stringify({ error: String(e) })))"
+        val result = try {
+            runWebView<ReaderResult> {
+                blockImages = true
+                interceptRequest { request ->
+                    val host = request.url.host
+                    if (host == null || host == baseHttpUrl.host) null else WebResourceResponse("text/plain", null, 403, "Blocked", null, ByteArrayInputStream(ByteArray(0)))
                 }
+                jsBridge(bridge) { resolve(it.parseAs()) }
+                onPageFinished { evaluateJs(script) }
+                loadData(baseUrl, "")
             }
-            .build()
-
-        val apiUrl = chapterUrl.toHttpUrl().newBuilder()
-            .addQueryParameter("reader", readerKey)
-            .addQueryParameter("id", chapterId.toString())
-            .build()
-
-        return try {
-            val response = client.get(apiUrl, manifestHeaders)
-            val jsonText = response.body.string()
-            val jsonResponse = jsonText.parseAs<InertiaResponseDto>()
-
-            jsonResponse.props.pages
-        } catch (e: Exception) {
-            throw IOException("Error al intentar obtener el manifiesto de páginas sin WebView: ${e.message}", e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            throw IOException(e.message, e)
         }
+        result.error?.let { throw IOException(it) }
+        result.pages!!
     }
+
+    private fun asset(name: String) = javaClass.getResource("/assets/$name")!!.readText()
 
     override val supportsFilterFetching = true
 

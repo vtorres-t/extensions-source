@@ -1,13 +1,9 @@
 package eu.kanade.tachiyomi.extension.es.dragontranslationorg
 
 import eu.kanade.tachiyomi.multisrc.madara.Madara
-import eu.kanade.tachiyomi.network.GET
-import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
-import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
-import keiyoushi.utils.asJsoup
 import keiyoushi.utils.parseAs
 import okhttp3.OkHttpClient
 import org.jsoup.nodes.Document
@@ -22,44 +18,8 @@ abstract class DragonTranslationOrg : Madara() {
 
     override fun OkHttpClient.Builder.configureClient() = rateLimit(3)
 
-    // === SOLUCIÓN DEFINITIVA: SALTARSE EL AJAX ANTIGUO DE MADARA ===
-    override suspend fun getPopularManga(page: Int): MangasPage {
-        val url = "$baseUrl/manga/page/$page/?m_orderby=views"
-        val document = client.newCall(GET(url, headers)).execute().asJsoup()
-        return parseNewMangaLayout(document)
-    }
-
-    override suspend fun getLatestUpdates(page: Int): MangasPage {
-        val url = "$baseUrl/manga/page/$page/?m_orderby=latest"
-        val document = client.newCall(GET(url, headers)).execute().asJsoup()
-        return parseNewMangaLayout(document)
-    }
-
-    // Extractor manual adaptado a la nueva interfaz visual de DragonTranslation
-    private fun parseNewMangaLayout(document: Document): MangasPage {
-        val mangas = document.select("div.grid-items > div, div.grid-chapters > div").map { element ->
-            SManga.create().apply {
-                val anchor = element.select("a[href*=/manga/]").first() ?: element.select("a").first()
-                anchor?.let { setUrlWithoutDomain(it.attr("href")) }
-
-                title = element.select("h3, h2, h4, .title").text().trim().takeIf { it.isNotBlank() }
-                    ?: element.select("img").attr("alt").trim()
-
-                val img = element.select("img").first()
-                thumbnail_url = img?.let {
-                    val dataSrc = it.attr("data-src")
-                    if (dataSrc.isNotBlank()) it.absUrl("data-src") else it.absUrl("src")
-                }
-            }
-        }
-        // Identificar si existe una página siguiente buscando las variantes del botón nativo
-        val hasNextPage = document.selectFirst("div.navigation a.next, a.next, .pagination a.next") != null
-        return MangasPage(mangas, hasNextPage)
-    }
-
-    // === SELECTORES ADICIONALES (TU CÓDIGO ORIGINAL) ===
     override val filterGenresSelector = ".filters"
-    override fun archiveSelector() = "div.grid-items > div, div.grid-chapters > div"
+    override fun archiveSelector() = "a:has(img.ac-cover)"
     override val archiveUrlSelector = "a"
 
     override val mangaDetailsSelectorTitle = "div.hero h1"

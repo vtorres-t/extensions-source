@@ -6,15 +6,13 @@ plugins {
 
 keiyoushi {
     name = "Lunar Manga"
-    versionCode = 2
+    versionCode = 4
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
     val languages = listOf(
         "all",
         "en",
-        "es",
-        "es-419",
     )
 
     languages.forEach { language ->
@@ -23,8 +21,4 @@ keiyoushi {
             lang = language
         }
     }
-}
-
-dependencies {
-    implementation(project(":lib:cryptoaes"))
 }

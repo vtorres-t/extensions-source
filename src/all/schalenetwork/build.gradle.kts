@@ -6,7 +6,7 @@ plugins {
 
 keiyoushi {
     name = "SchaleNetwork"
-    versionCode = 2
+    versionCode = 3
     contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
     pkgName = "all.koharu"

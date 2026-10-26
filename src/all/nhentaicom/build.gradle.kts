@@ -6,15 +6,15 @@ plugins {
 
 keiyoushi {
     name = "nHentai.com (unoriginal)"
-    versionCode = 0
+    versionCode = 1
     contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
     theme = "hentaihand"
 
     val languages = listOf(
-        "all",
-        "en",
-        "other",
+        "all", "zh", "en", "ja", "other", "ar", "jv", "bg", "cs",
+        "uk", "sk", "eo", "mn", "la", "ceb", "tl", "tr",
+        "sr", "el",
     )
 
     languages.forEach { language ->
@@ -26,6 +26,7 @@ keiyoushi {
                 "all" -> id = 9165839893600661480L
                 "en" -> id = 5591830863732393712L
                 "other" -> id = 5817327335315373850L
+                "cs" -> id = 1144495813995437124L
             }
         }
     }

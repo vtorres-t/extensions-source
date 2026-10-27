@@ -5,14 +5,14 @@ plugins {
 }
 
 keiyoushi {
-    name = "Razure"
-    versionCode = 0
-    contentWarning = ContentWarning.SAFE
+    name = "Lgbtics"
+    versionCode = 1
+    contentWarning = ContentWarning.NSFW
     libVersion = "1.6"
-    theme = "mangathemesia"
+    theme = "madara"
 
     source {
         lang = "en"
-        baseUrl = "https://razure.org"
+        baseUrl = "https://lgbtics.com"
     }
 }

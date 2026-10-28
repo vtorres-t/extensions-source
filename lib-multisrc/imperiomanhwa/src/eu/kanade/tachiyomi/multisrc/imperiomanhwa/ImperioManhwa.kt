@@ -17,7 +17,6 @@ import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
 import keiyoushi.utils.asJsoup
 import keiyoushi.utils.getPreferencesLazy
-import keiyoushi.utils.getTurnstileToken
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.runWebView
 import keiyoushi.utils.stringOrNull
@@ -116,11 +115,10 @@ abstract class ImperioManhwa :
         fetchChapters: Boolean,
     ): SMangaUpdate {
         val props = client.get(getMangaUrl(manga)).asJsoup().inertiaPage<SeriesProps>().props
-        // A labelled tag row holds something else, like the series' groups
+
         props.series.applyTo(manga, intl["alt_names"], withTags = props.tagsLabel == null)
         if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
-        // Dates from the series page, the rest from the full chapter list
         val all = if (props.chaptersPagination.last > 1) {
             client.get(baseHttpUrl.resolve(props.series.url)!!.resolve("${props.paths.chapters}.json")!!).parseAs<ChapterListDto>().items
         } else {
@@ -135,9 +133,6 @@ abstract class ImperioManhwa :
         )
     }
 
-    // The full list's labels have no year ("24 Sep", "24 ago."). Newest first from the series page's dated
-    // rows, each takes the latest year that isn't more than two months after the row above (rows run up to
-    // a month out of order)
     private fun uploadDates(chapters: List<ChapterDto>): List<Long> {
         var previous: LocalDate? = null
         return chapters.map { chapter ->
@@ -157,13 +152,11 @@ abstract class ImperioManhwa :
         }
     }
 
-    // Madara-era search results: a post id, with the path in memo
     override fun getMangaUrl(manga: SManga): String {
         val path = manga.memo["path"]?.stringOrNull?.takeIf { manga.url.all(Char::isDigit) } ?: manga.url
         return baseUrl + path
     }
 
-    // Madara-era chapters: a bare slug, with the series path in memo
     override fun getChapterUrl(chapter: SChapter): String {
         val mangaPath = chapter.memo["mangaPath"]?.stringOrNull?.takeIf { '/' !in chapter.url }
         return baseUrl + (mangaPath?.let { "${it.trimEnd('/')}/${chapter.url}/" } ?: chapter.url)
@@ -175,13 +168,12 @@ abstract class ImperioManhwa :
         if (page.component == "Reader/Locked") return emptyList()
 
         val props = page.props.parseAs<ReaderProps>()
-        // Inline first page, then the sealed rest from the site's reader
+
         val pages = if (props.dims.isEmpty()) {
             props.pages
         } else {
             val entry = document.selectFirst("script[type=module][src*=/build/assets/]")!!.absUrl("src")
-            val input = ReaderInput(entry, props.reader, props.chapter.id, props.series.slug)
-            val sealed = openReader(input, getChapterUrl(chapter)).associateBy { it.n }
+            val sealed = openReader(ReaderInput(entry, props.reader, props.chapter.id, props.series.slug)).associateBy { it.n }
             val inline = props.pages.size
             props.pages + (inline + 1..inline + props.dims.size).map { sealed[it] ?: throw IOException("Page $it missing") }
         }
@@ -193,26 +185,13 @@ abstract class ImperioManhwa :
         }
     }
 
-    // One reader WebView at a time
     private val readerMutex = Mutex()
 
-    // A manifest can answer 428 with a Turnstile sitekey. Cloudflare's script is blocked in the reader, so
-    // reader.js shims window.turnstile to hand the sitekey back, then the solved token on a second run
-    private suspend fun openReader(input: ReaderInput, chapterUrl: String): List<PageDto> {
-        val first = runReader(input)
-        val result = first.sitekey?.let { sitekey ->
-            input.token = getTurnstileToken(chapterUrl, sitekey)
-            runReader(input)
-        } ?: first
-        result.error?.let { throw IOException(it) }
-        return result.pages!!
-    }
-
-    private suspend fun runReader(input: ReaderInput): ReaderResult = readerMutex.withLock {
+    private suspend fun openReader(input: ReaderInput): List<PageDto> = readerMutex.withLock {
         val bridge = "r" + Random.nextLong().toULong().toString(36)
         val script = "(${asset("reader.js")})(${input.toJsonString()})" +
-            ".then((pages) => $bridge.postMessage(JSON.stringify({ pages })), (e) => $bridge.postMessage(JSON.stringify({ error: String(e), sitekey: e?.sitekey })))"
-        try {
+            ".then((pages) => $bridge.postMessage(JSON.stringify({ pages })), (e) => $bridge.postMessage(JSON.stringify({ error: String(e) })))"
+        val result = try {
             runWebView<ReaderResult> {
                 blockImages = true
                 interceptRequest { request ->
@@ -228,6 +207,8 @@ abstract class ImperioManhwa :
         } catch (e: Throwable) {
             throw IOException(e.message, e)
         }
+        result.error?.let { throw IOException(it) }
+        result.pages!!
     }
 
     private fun asset(name: String) = javaClass.getResource("/assets/$name")!!.readText()
@@ -300,7 +281,6 @@ abstract class ImperioManhwa :
 
         private val DATE_LABEL = Regex("""(\d{1,2}) (\p{L}{3})\p{L}*\.?""")
 
-        // English and Spanish month abbreviations
         private val MONTHS = listOf(
             "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
             "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",

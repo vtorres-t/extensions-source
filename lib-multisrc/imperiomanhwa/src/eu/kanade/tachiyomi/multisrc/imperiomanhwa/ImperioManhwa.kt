@@ -86,7 +86,18 @@ abstract class ImperioManhwa :
 
     private suspend fun listing(url: HttpUrl): MangasPage {
         val props = client.get(url).asJsoup().inertiaPage<ListingProps>().props
-        return MangasPage(props.series.map { it.toSManga() }, props.pagination.next != null)
+
+        // Filtrado de contenido sensible si la opción está activa
+        val filteredSeries = if (hide18Plus) {
+            props.series.filterNot { manga ->
+                manga.genres.orEmpty().any { genre ->
+                    genre.name.equals("+18", ignoreCase = true)
+                }
+            }
+        } else {
+            props.series
+        }
+        return MangasPage(filteredSeries.map { it.toSManga() }, props.pagination.next != null)
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {
@@ -239,6 +250,8 @@ abstract class ImperioManhwa :
 
     private val hideLocked get() = preferences.getBoolean(REMOVE_PREMIUM_CHAPTERS, REMOVE_PREMIUM_CHAPTERS_DEFAULT)
 
+    private val hide18Plus get() = preferences.getBoolean(HIDE_18_PLUS, HIDE_18_PLUS_DEFAULT)
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = REMOVE_PREMIUM_CHAPTERS
@@ -250,11 +263,21 @@ abstract class ImperioManhwa :
                 true
             }
         }.also(screen::addPreference)
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = HIDE_18_PLUS
+            title = intl["hide_18_plus_title"]
+            summary = intl["hide_18_plus_summary"]
+            setDefaultValue(HIDE_18_PLUS_DEFAULT)
+        }.also(screen::addPreference)
     }
 
     companion object {
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
+
+        private const val HIDE_18_PLUS = "hide18Plus"
+        private const val HIDE_18_PLUS_DEFAULT = true
 
         private val SORTS = listOf("reciente", "nuevas", "vistas", "valoradas", "seguidas", "alfabetico")
         private val TYPES = listOf("manga", "manhwa", "manhua", "webtoon")

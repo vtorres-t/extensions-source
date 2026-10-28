@@ -56,6 +56,18 @@ abstract class ImperioManhwa :
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
     override fun OkHttpClient.Builder.configureClient() = rateLimit(2) { it.host == baseHttpUrl.host }
+        .addInterceptor { chain ->
+            val request = chain.request()
+
+            if (hide18Plus && request.url.host == baseHttpUrl.host) {
+                val newRequest = request.newBuilder()
+                    .addHeader("Cookie", "cp=0")
+                    .build()
+                chain.proceed(newRequest)
+            } else {
+                chain.proceed(request)
+            }
+        }
 
     override suspend fun getPopularManga(page: Int) = library(page, listOf("orden" to "vistas"))
 
@@ -86,18 +98,7 @@ abstract class ImperioManhwa :
 
     private suspend fun listing(url: HttpUrl): MangasPage {
         val props = client.get(url).asJsoup().inertiaPage<ListingProps>().props
-
-        // Filtrado de contenido sensible si la opción está activa
-        val filteredSeries = if (hide18Plus) {
-            props.series.filterNot { manga ->
-                manga.genres.orEmpty().any { genre ->
-                    genre.name.equals("+18", ignoreCase = true)
-                }
-            }
-        } else {
-            props.series
-        }
-        return MangasPage(filteredSeries.map { it.toSManga() }, props.pagination.next != null)
+        return MangasPage(props.series.map { it.toSManga() }, props.pagination.next != null)
     }
 
     override suspend fun getMangaByUrl(url: HttpUrl): SManga? {

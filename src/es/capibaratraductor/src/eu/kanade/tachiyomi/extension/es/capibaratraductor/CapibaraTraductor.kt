@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.extension.es.capibaratraductor
 
+import androidx.preference.PreferenceScreen
+import androidx.preference.SwitchPreferenceCompat
+import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -11,6 +14,7 @@ import keiyoushi.annotation.Source
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
+import keiyoushi.utils.getPreferencesLazy
 import keiyoushi.utils.parseAs
 import keiyoushi.utils.toJsonElement
 import kotlinx.serialization.json.JsonElement
@@ -22,7 +26,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 
 @Source
-abstract class CapibaraTraductor : KeiSource() {
+abstract class CapibaraTraductor :
+    KeiSource(),
+    ConfigurableSource {
 
     private val baseUrlHost get() = baseUrl.toHttpUrl().host
 
@@ -50,15 +56,16 @@ abstract class CapibaraTraductor : KeiSource() {
         .add("x-organization", organizationSlug)
         .build()
 
-    override suspend fun getPopularManga(page: Int): MangasPage = parseMangaList("$baseUrl/api/manga-custom?page=$page&limit=$PAGE_LIMIT&order=popular".toHttpUrl(), page, headers)
+    override suspend fun getPopularManga(page: Int): MangasPage = parseMangaList("$baseUrl/api/manga-custom?page=$page&limit=$PAGE_LIMIT&order=popular&nsfw=${(!hide18Plus)}".toHttpUrl(), page, headers)
 
-    override suspend fun getLatestUpdates(page: Int): MangasPage = parseMangaList("$baseUrl/api/manga-custom?page=$page&limit=$PAGE_LIMIT&order=latest".toHttpUrl(), page, headers)
+    override suspend fun getLatestUpdates(page: Int): MangasPage = parseMangaList("$baseUrl/api/manga-custom?page=$page&limit=$PAGE_LIMIT&order=latestr&nsfw=${(!hide18Plus)}".toHttpUrl(), page, headers)
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val url = "$baseUrl/api/manga-custom".toHttpUrl().newBuilder()
 
         url.setQueryParameter("page", page.toString())
         url.setQueryParameter("limit", PAGE_LIMIT.toString())
+        url.setQueryParameter("nsfw", (!hide18Plus).toString())
 
         val headers = headers.newBuilder()
 
@@ -196,7 +203,23 @@ abstract class CapibaraTraductor : KeiSource() {
             }
     }
 
+    private val preferences by getPreferencesLazy()
+
+    private val hide18Plus get() = preferences.getBoolean(HIDE_18_PLUS, HIDE_18_PLUS_DEFAULT)
+
+    override fun setupPreferenceScreen(screen: PreferenceScreen) {
+        SwitchPreferenceCompat(screen.context).apply {
+            key = eu.kanade.tachiyomi.extension.es.capibaratraductor.CapibaraTraductor.Companion.HIDE_18_PLUS
+            title = "Filtrar contenido +18"
+            summary = "Ocultar mangas para adultos en las búsquedas y listados"
+            setDefaultValue(eu.kanade.tachiyomi.extension.es.capibaratraductor.CapibaraTraductor.Companion.HIDE_18_PLUS_DEFAULT)
+        }.also(screen::addPreference)
+    }
+
     companion object {
         private const val PAGE_LIMIT = 36
+
+        private const val HIDE_18_PLUS = "hide18Plus"
+        private const val HIDE_18_PLUS_DEFAULT = true
     }
 }

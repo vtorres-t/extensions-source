@@ -25,8 +25,10 @@ import keiyoushi.utils.toJsonElement
 import keiyoushi.utils.toJsonString
 import keiyoushi.utils.tryParse
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -206,15 +208,28 @@ abstract class ImperioManhwa :
         val script = "(${asset("reader.js")})(${input.toJsonString()})" +
             ".then((pages) => $bridge.postMessage(JSON.stringify({ pages })), (e) => $bridge.postMessage(JSON.stringify({ error: String(e), sitekey: e?.sitekey })))"
         try {
-            runWebView<ReaderResult> {
-                blockImages = true
-                interceptRequest { request ->
-                    val host = request.url.host
-                    if (host == null || host == baseHttpUrl.host) null else WebResourceResponse("text/plain", null, 403, "Blocked", null, ByteArrayInputStream(ByteArray(0)))
+            withContext(Dispatchers.Main) {
+                runWebView<ReaderResult> {
+                    blockImages = true
+                    interceptRequest { request ->
+                        val host = request.url.host
+                        if (host == null || host == baseHttpUrl.host) {
+                            null
+                        } else {
+                            WebResourceResponse(
+                                "text/plain",
+                                null,
+                                403,
+                                "Blocked",
+                                null,
+                                ByteArrayInputStream(ByteArray(0)),
+                            )
+                        }
+                    }
+                    webMessageBridge(bridge, setOf(baseUrl)) { resolve(it.parseAs()) }
+                    onPageFinished { evaluateJs(script) }
+                    loadData(baseUrl, "")
                 }
-                webMessageBridge(bridge, setOf(baseUrl)) { resolve(it.parseAs()) }
-                onPageFinished { evaluateJs(script) }
-                loadData(baseUrl, "")
             }
         } catch (e: CancellationException) {
             throw e

@@ -197,6 +197,7 @@ abstract class ImperioManhwa :
         val first = runReader(input)
         val result = first.sitekey?.let { sitekey ->
             input.token = getTurnstileToken(chapterUrl, sitekey)
+            kotlinx.coroutines.delay(1500)
             runReader(input)
         } ?: first
         result.error?.let { throw IOException(it) }
@@ -210,7 +211,7 @@ abstract class ImperioManhwa :
         try {
             withContext(Dispatchers.Main) {
                 runWebView<ReaderResult> {
-                    blockImages = true
+                    blockImages = false
                     interceptRequest { request ->
                         val host = request.url.host
                         if (host == null || host == baseHttpUrl.host) {

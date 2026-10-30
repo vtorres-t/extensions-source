@@ -63,26 +63,12 @@ abstract class CapibaraTraductor :
         .add("x-organization", organizationSlug)
         .build()
 
-<<<<<<< HEAD
-    override suspend fun getPopularManga(page: Int): MangasPage = parseMangaList("$baseUrl/api/manga-custom?page=$page&limit=$PAGE_LIMIT&order=popular&nsfw=${(!hide18Plus)}".toHttpUrl(), page, headers)
-
-    override suspend fun getLatestUpdates(page: Int): MangasPage = parseMangaList("$baseUrl/api/manga-custom?page=$page&limit=$PAGE_LIMIT&order=latestr&nsfw=${(!hide18Plus)}".toHttpUrl(), page, headers)
-
-    override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
-        val url = "$baseUrl/api/manga-custom".toHttpUrl().newBuilder()
-
-        url.setQueryParameter("page", page.toString())
-        url.setQueryParameter("limit", PAGE_LIMIT.toString())
-        url.setQueryParameter("nsfw", (!hide18Plus).toString())
-
-=======
     override suspend fun getPopularManga(page: Int): MangasPage = parseMangaList(mangaListUrl(page).addQueryParameter("order", "popular").build(), page, headers)
 
     override suspend fun getLatestUpdates(page: Int): MangasPage = parseMangaList(mangaListUrl(page).addQueryParameter("order", "latest").build(), page, headers)
 
     override suspend fun getSearchMangaList(page: Int, query: String, filters: FilterList): MangasPage {
         val url = mangaListUrl(page)
->>>>>>> upstream/main
         val headers = headers.newBuilder()
 
         filters.forEach { filter ->

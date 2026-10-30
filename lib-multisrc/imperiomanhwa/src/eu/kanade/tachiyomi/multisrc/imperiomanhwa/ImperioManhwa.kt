@@ -196,8 +196,12 @@ abstract class ImperioManhwa :
     private suspend fun openReader(input: ReaderInput, chapterUrl: String): List<PageDto> {
         val first = runReader(input)
         val result = first.sitekey?.let { sitekey ->
+<<<<<<< HEAD
             input.token = getTurnstileToken(chapterUrl, sitekey)
             kotlinx.coroutines.delay(1500)
+=======
+            input.token = getTurnstileToken(chapterUrl, sitekey, action = first.action, cData = first.cdata)
+>>>>>>> upstream/main
             runReader(input)
         } ?: first
         result.error?.let { throw IOException(it) }
@@ -207,7 +211,7 @@ abstract class ImperioManhwa :
     private suspend fun runReader(input: ReaderInput): ReaderResult = readerMutex.withLock {
         val bridge = "r" + Random.nextLong().toULong().toString(36)
         val script = "(${asset("reader.js")})(${input.toJsonString()})" +
-            ".then((pages) => $bridge.postMessage(JSON.stringify({ pages })), (e) => $bridge.postMessage(JSON.stringify({ error: String(e), sitekey: e?.sitekey })))"
+            ".then((pages) => $bridge.postMessage(JSON.stringify({ pages })), (e) => $bridge.postMessage(JSON.stringify({ error: String(e), sitekey: e?.sitekey, action: e?.action, cdata: e?.cdata })))"
         try {
             withContext(Dispatchers.Main) {
                 runWebView<ReaderResult> {

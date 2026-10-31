@@ -189,8 +189,6 @@ abstract class ImperioManhwa :
 
     private val readerMutex = Mutex()
 
-    // A manifest can answer 428 with a Turnstile sitekey. Cloudflare's script is blocked in the reader, so
-    // reader.js shims window.turnstile to hand the sitekey back, then the solved token on a second run
     private suspend fun openReader(input: ReaderInput, chapterUrl: String): List<PageDto> {
         val first = runReader(input)
         val result = first.sitekey?.let { sitekey ->
@@ -234,17 +232,34 @@ abstract class ImperioManhwa :
 
     override fun getFilterList(data: JsonElement?): FilterList {
         val filterData = data?.parseAs<FilterData>()
-        val all = intl["all"] to ""
+        val all = "Todos" to ""
+
+        val sortMap = mapOf(
+            "reciente" to "Recientes",
+            "nuevas" to "Nuevas",
+            "vistas" to "Más vistas",
+            "valoradas" to "Mejor valoradas",
+            "seguidas" to "Más seguidas",
+            "alfabetico" to "A-Z",
+        )
+
+        val statusMap = mapOf(
+            "ongoing" to "En curso",
+            "completed" to "Finalizado",
+            "hiatus" to "En pausa",
+            "cancelled" to "Cancelado",
+        )
+
         return FilterList(
             listOfNotNull(
-                QueryFilter(intl["sort_title"], "orden", SORTS.map { intl["sort_$it"] to it }, SORTS.indexOf("vistas")),
+                QueryFilter("Ordenar por", "orden", SORTS.map { (sortMap[it] ?: it) to it }, SORTS.indexOf("vistas")),
                 filterData?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
-                    QueryFilter(intl["genre_title"], "genero", listOf(all) + genres.map { it.name to it.slug })
+                    QueryFilter("Género", "genero", listOf(all) + genres.map { it.name to it.slug })
                 },
-                QueryFilter(intl["type_title"], "tipo", listOf(all) + TYPES.map { it.replaceFirstChar(Char::uppercase) to it }),
-                QueryFilter(intl["status_title"], "estado", listOf(all) + STATUSES.map { intl["status_$it"] to it }),
+                QueryFilter("Tipo", "tipo", listOf(all) + TYPES.map { it.replaceFirstChar(Char::uppercase) to it }),
+                QueryFilter("Estado", "estado", listOf(all) + STATUSES.map { (statusMap[it] ?: it) to it }),
                 filterData?.sections?.takeIf { it.isNotEmpty() }?.let { sections ->
-                    QueryFilter(intl["section_title"], "seccion", listOf(all) + sections.map { it.label to it.code })
+                    QueryFilter("Sección", "seccion", listOf(all) + sections.map { it.label to it.code })
                 },
             ),
         )
@@ -261,19 +276,19 @@ abstract class ImperioManhwa :
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = REMOVE_PREMIUM_CHAPTERS
-            title = intl["hide_locked_title"]
-            summary = intl["hide_locked_summary"]
+            title = "Filtrar capítulos VIP"
+            summary = "Oculta automáticamente los capítulos VIP"
             setDefaultValue(REMOVE_PREMIUM_CHAPTERS_DEFAULT)
             setOnPreferenceChangeListener { _, _ ->
-                Toast.makeText(screen.context, intl["hide_locked_toast"], Toast.LENGTH_LONG).show()
+                Toast.makeText(screen.context, "Para aplicar los cambios, actualiza la lista de capítulos", Toast.LENGTH_LONG).show()
                 true
             }
         }.also(screen::addPreference)
 
         SwitchPreferenceCompat(screen.context).apply {
             key = HIDE_18_PLUS
-            title = intl["hide_18_plus_title"]
-            summary = intl["hide_18_plus_summary"]
+            title = "Filtrar contenido +18"
+            summary = "Ocultar mangas para adultos en las búsquedas y listados"
             setDefaultValue(HIDE_18_PLUS_DEFAULT)
         }.also(screen::addPreference)
     }

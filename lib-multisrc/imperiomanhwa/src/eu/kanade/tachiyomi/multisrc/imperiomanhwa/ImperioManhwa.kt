@@ -208,28 +208,15 @@ abstract class ImperioManhwa :
         val script = "(${asset("reader.js")})(${input.toJsonString()})" +
             ".then((pages) => $bridge.postMessage(JSON.stringify({ pages })), (e) => $bridge.postMessage(JSON.stringify({ error: String(e), sitekey: e?.sitekey, action: e?.action, cdata: e?.cdata })))"
         try {
-            withContext(Dispatchers.Main) {
-                runWebView<ReaderResult> {
-                    blockImages = false
-                    interceptRequest { request ->
-                        val host = request.url.host
-                        if (host == null || host == baseHttpUrl.host) {
-                            null
-                        } else {
-                            WebResourceResponse(
-                                "text/plain",
-                                null,
-                                403,
-                                "Blocked",
-                                null,
-                                ByteArrayInputStream(ByteArray(0)),
-                            )
-                        }
-                    }
-                    webMessageBridge(bridge, setOf(baseUrl)) { resolve(it.parseAs()) }
-                    onPageFinished { evaluateJs(script) }
-                    loadData(baseUrl, "")
+            runWebView<ReaderResult> {
+                blockImages = true
+                interceptRequest { request ->
+                    val host = request.url.host
+                    if (host == null || host == baseHttpUrl.host) null else WebResourceResponse("text/plain", null, 403, "Blocked", null, ByteArrayInputStream(ByteArray(0)))
                 }
+                webMessageBridge(bridge, setOf(baseUrl)) { resolve(it.parseAs()) }
+                onPageFinished { evaluateJs(script) }
+                loadData(baseUrl, "")
             }
         } catch (e: CancellationException) {
             throw e

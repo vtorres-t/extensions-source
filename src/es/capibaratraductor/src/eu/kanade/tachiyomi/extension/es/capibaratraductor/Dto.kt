@@ -146,20 +146,6 @@ class SeriesChapterDto(
     val isUnreleased: Boolean = false,
     private val jointId: Int? = null,
 ) {
-<<<<<<< HEAD
-    fun toSChapter(seriesSlug: String, organizationSlug: String) = SChapter.create().apply {
-        val chapterNumberStr = number.toString().removeSuffix(".0")
-        val cleanTitle = title.trim()
-        val isRedundant = cleanTitle.lowercase().contains("cap") ||
-            cleanTitle == chapterNumberStr
-
-        name = if (isRedundant || cleanTitle.isBlank()) {
-            "Capítulo $chapterNumberStr"
-        } else {
-            "Capítulo $chapterNumberStr - $cleanTitle"
-        }
-
-=======
     fun toSChapter(seriesSlug: String, organizationSlug: String, labelMode: String?, jointSlug: String?) = SChapter.create().apply {
         val shownNumber = displayNumber ?: number
         val chapterLabel = "Capítulo ${shownNumber.toString().removeSuffix(".0")}"
@@ -172,7 +158,6 @@ class SeriesChapterDto(
         val titleNumber = CHAPTER_TITLE_REGEX.matchEntire(trimmedTitle)?.groupValues?.get(1)?.toFloatOrNull()
         name = if (trimmedTitle.isEmpty() || titleNumber == shownNumber || trimmedTitle.equals(label, ignoreCase = true)) label else "$label - $trimmedTitle"
         chapter_number = shownNumber
->>>>>>> upstream/main
         date_upload = Instant.tryParse(releasedAt)
         url = "$number/$seriesSlug/$organizationSlug"
         memo = buildJsonObject {

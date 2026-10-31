@@ -302,12 +302,10 @@ abstract class CapibaraTraductor :
 
     companion object {
         private const val PAGE_LIMIT = 36
-<<<<<<< HEAD
 
         private const val HIDE_18_PLUS = "hide18Plus"
         private const val HIDE_18_PLUS_DEFAULT = true
-=======
+
         private const val COMIC_TYPES = "manga,manhwa,manhua"
->>>>>>> upstream/main
     }
 }

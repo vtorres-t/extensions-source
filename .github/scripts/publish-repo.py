@@ -219,97 +219,13 @@ def main():
     if not changed_extensions:
        sys.exit(0)
 
+    for i in range(0, total_changed_extensions, ext_per_release):
+        batch = changed_extensions[i : i + ext_per_release]
+        tag = get_release_tag(i // ext_per_release, release_count)
+        files_to_upload = [file for _, apk, jar, _ in batch for file in (apk, jar)]
 
-def create_release(tag: str):
-    if run_gh(
-        "release",
-        "view",
-        tag,
-        "--repo",
-        REPO_NAME,
-        "--json",
-        "tagName",
-        success_errors=("release not found",),
-    ):
-        print(f"Release {tag} already exists")
-        return
-
-    print(f"Creating release {tag}")
-    run_gh(
-        "release",
-        "create",
-        tag,
-        "--repo",
-        REPO_NAME,
-        "--draft",
-        "--title",
-        f"Repository Update {tag}",
-        "--notes",
-        f"Automated update from keiyoushi/extensions-source@{current_sha}",
-    )
-
-
-def publish_release(tag: str):
-    print(f"Publishing release {tag}")
-    run_gh("release", "edit", tag, "--repo", REPO_NAME, "--draft=false")
-
-
-def get_release_assets(tag: str) -> dict[str, str]:
-    release = json.loads(
-        run_gh(
-            "release",
-            "view",
-            tag,
-            "--repo",
-            REPO_NAME,
-            "--json",
-            "assets",
-        )
-    )
-    return {
-        asset["name"]: (asset.get("digest") or "").removeprefix("sha256:")
-        for asset in release["assets"]
-    }
-
-
-def upload_assets(tag: str, files: list[Path]):
-    if not files:
-        return
-
-    existing_assets = get_release_assets(tag)
-    files_to_upload = [
-        file
-        for file in files
-        if existing_assets.get(file.name)
-        != hashlib.sha256(file.read_bytes()).hexdigest()
-    ]
-    skipped = len(files) - len(files_to_upload)
-    print(f"Uploading {len(files_to_upload)} assets to {tag}, skipping {skipped}")
-
-    for i in range(0, len(files_to_upload), UPLOAD_CHUNK_SIZE):
-        chunk = files_to_upload[i : i + UPLOAD_CHUNK_SIZE]
-        if i:
-            time.sleep(UPLOAD_CHUNK_INTERVAL)
-        print(f"  assets {i + 1}-{i + len(chunk)} of {len(files_to_upload)}")
-        run_gh(
-            "release",
-            "upload",
-            tag,
-            *[str(f) for f in chunk],
-            "--repo",
-            REPO_NAME,
-            "--clobber",
-        )
-    publish_release(tag)
-
-
-for i in range(0, total_changed_extensions, ext_per_release):
-    batch = changed_extensions[i : i + ext_per_release]
-    tag = get_release_tag(i // ext_per_release, release_count)
-    files_to_upload = [file for _, apk, jar, _ in batch for file in (apk, jar)]
-
-    create_release(tag)
-    upload_assets(tag, files_to_upload)
+        create_release(tag)
+        upload_assets(tag, files_to_upload)
 
 if __name__ == '__main__':
     main()

@@ -77,7 +77,7 @@ def get_release_tag(batch_index: int, release_count: int) -> str:
 
 
 def main():
-    new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool, bool]] = []
+    new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool]] = []
     extensiones_cargadas = []
 
     for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
@@ -108,27 +108,17 @@ def main():
                 f"{package_name}: no release jar found under {info_file.parent}"
             )
 
-        assets = {
-            "apk": {
-                "name": apk.name,
-                "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-            },
-            "jar": {
-                "name": jar.name,
-                "sha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
-            },
-        }
-        old_assets = release_assets.get(package_name, {})
-        apk_changed = (
-            package_name not in remote_extensions
-            or old_assets.get("apk") != assets["apk"]
-        )
-        jar_changed = (
-            package_name not in remote_extensions
-            or old_assets.get("jar") != assets["jar"]
+        # The apk and jar always ship together, when the content hash (version and signature
+        # independent, see ComputeContentHashTask) or the versionCode changed.
+        content_hash = info["contentHash"]
+        remote_ext = remote_extensions.get(package_name)
+        changed = (
+            remote_ext is None
+            or remote_ext.versionCode != info["versionCode"]
+            or release_assets.get(package_name) != content_hash
         )
 
-        updated_release_assets[package_name] = assets
+        updated_release_assets[package_name] = content_hash
 
         ext = index_pb2.Extension(
             name=info["name"],
@@ -151,11 +141,11 @@ def main():
                 for source in info["sources"]
             ],
         )
-        new_extensions.append((ext, apk, jar, apk_changed, jar_changed))
+        new_extensions.append((ext, apk, jar, changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 
-    changed_extensions = [item for item in new_extensions if item[3] or item[4]]
+    changed_extensions = [item for item in new_extensions if item[3]]
     total_changed_extensions = len(changed_extensions)
     release_count = (
         math.ceil(total_changed_extensions / ASSET_LIMIT)
@@ -167,20 +157,11 @@ def main():
     )
 
     changed_index = 0
-    for ext, apk, jar, apk_changed, jar_changed in new_extensions:
-        if apk_changed or jar_changed:
-            tag = get_release_tag(changed_index // ext_per_release, release_count)
-            old_resources = remote_extensions.get(ext.packageName)
-            ext.resources.apkUrl = (
-                f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
-                if apk_changed
-                else old_resources.resources.apkUrl
-            )
-            ext.resources.jarUrl = (
-                f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
-                if jar_changed
-                else old_resources.resources.jarUrl
-            )
+    for ext, apk, jar, changed in new_extensions:
+        if changed:
+            tag = get_release_tag(changed_index // ext_per_release)
+            ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
+            ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
             changed_index += 1
         else:
             old_resources = remote_extensions[ext.packageName].resources
@@ -195,7 +176,7 @@ def main():
         if not full_rebuild
         and not any(ext.packageName.endswith(f".{module}") for module in to_delete)
     )
-    final_extensions.extend(ext for ext, _, _, _, _ in new_extensions)
+    final_extensions.extend(ext for ext, _, _, _ in new_extensions)
     final_extensions.sort(key=lambda ext: ext.packageName)
 
     index = index_pb2.Index(
@@ -239,15 +220,93 @@ def main():
        sys.exit(0)
 
 
-    for i in range(0, total_changed_extensions, ext_per_release):
-        batch = changed_extensions[i : i + ext_per_release]
-        tag = get_release_tag(i // ext_per_release, release_count)
-        files_to_upload = [
-            file
-            for _, apk, jar, apk_changed, jar_changed in batch
-            for file, changed in ((apk, apk_changed), (jar, jar_changed))
-            if changed
-        ]
+def create_release(tag: str):
+    if run_gh(
+        "release",
+        "view",
+        tag,
+        "--repo",
+        REPO_NAME,
+        "--json",
+        "tagName",
+        success_errors=("release not found",),
+    ):
+        print(f"Release {tag} already exists")
+        return
+
+    print(f"Creating release {tag}")
+    run_gh(
+        "release",
+        "create",
+        tag,
+        "--repo",
+        REPO_NAME,
+        "--draft",
+        "--title",
+        f"Repository Update {tag}",
+        "--notes",
+        f"Automated update from keiyoushi/extensions-source@{current_sha}",
+    )
+
+
+def publish_release(tag: str):
+    print(f"Publishing release {tag}")
+    run_gh("release", "edit", tag, "--repo", REPO_NAME, "--draft=false")
+
+
+def get_release_assets(tag: str) -> dict[str, str]:
+    release = json.loads(
+        run_gh(
+            "release",
+            "view",
+            tag,
+            "--repo",
+            REPO_NAME,
+            "--json",
+            "assets",
+        )
+    )
+    return {
+        asset["name"]: (asset.get("digest") or "").removeprefix("sha256:")
+        for asset in release["assets"]
+    }
+
+
+def upload_assets(tag: str, files: list[Path]):
+    if not files:
+        return
+
+    existing_assets = get_release_assets(tag)
+    files_to_upload = [
+        file
+        for file in files
+        if existing_assets.get(file.name)
+        != hashlib.sha256(file.read_bytes()).hexdigest()
+    ]
+    skipped = len(files) - len(files_to_upload)
+    print(f"Uploading {len(files_to_upload)} assets to {tag}, skipping {skipped}")
+
+    for i in range(0, len(files_to_upload), UPLOAD_CHUNK_SIZE):
+        chunk = files_to_upload[i : i + UPLOAD_CHUNK_SIZE]
+        if i:
+            time.sleep(UPLOAD_CHUNK_INTERVAL)
+        print(f"  assets {i + 1}-{i + len(chunk)} of {len(files_to_upload)}")
+        run_gh(
+            "release",
+            "upload",
+            tag,
+            *[str(f) for f in chunk],
+            "--repo",
+            REPO_NAME,
+            "--clobber",
+        )
+    publish_release(tag)
+
+
+for i in range(0, total_changed_extensions, ext_per_release):
+    batch = changed_extensions[i : i + ext_per_release]
+    tag = get_release_tag(i // ext_per_release, release_count)
+    files_to_upload = [file for _, apk, jar, _ in batch for file in (apk, jar)]
 
         create_release(tag)
         upload_assets(tag, files_to_upload)

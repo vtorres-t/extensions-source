@@ -308,8 +308,8 @@ for i in range(0, total_changed_extensions, ext_per_release):
     tag = get_release_tag(i // ext_per_release, release_count)
     files_to_upload = [file for _, apk, jar, _ in batch for file in (apk, jar)]
 
-        create_release(tag)
-        upload_assets(tag, files_to_upload)
+    create_release(tag)
+    upload_assets(tag, files_to_upload)
 
 if __name__ == '__main__':
     main()

@@ -159,7 +159,7 @@ def main():
     changed_index = 0
     for ext, apk, jar, changed in new_extensions:
         if changed:
-            tag = get_release_tag(changed_index // ext_per_release)
+            tag = get_release_tag(changed_index // ext_per_release, release_count)
             ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
             ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
             changed_index += 1

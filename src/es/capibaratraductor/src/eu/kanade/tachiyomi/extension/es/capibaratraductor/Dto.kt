@@ -45,7 +45,7 @@ class SeriesDto(
     private val jointSlug: String? = null,
     @SerialName("_jointMembers") private val jointMembers: List<OrganizationDto>? = emptyList(),
     val members: List<MemberDto>? = emptyList(),
-    private val requireLogin: Boolean = false,
+    val requireLogin: Boolean = false,
 ) {
     fun toSManga(orgSlug: String? = null) = SManga.create().apply {
         val organizationSlug = orgSlug ?: organization!!.slug

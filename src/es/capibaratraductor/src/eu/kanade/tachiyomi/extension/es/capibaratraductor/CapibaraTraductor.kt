@@ -109,7 +109,6 @@ abstract class CapibaraTraductor :
             }
         }
 
-
     private suspend fun parseMangaList(url: HttpUrl, page: Int, headers: Headers): MangasPage {
         val result = client.get(url, headers, Fetch.XHR).parseAs<Data<SeriesListDataDto>>()
 

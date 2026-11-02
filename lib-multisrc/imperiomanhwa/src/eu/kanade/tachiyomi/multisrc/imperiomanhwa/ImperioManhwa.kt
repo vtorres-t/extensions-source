@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import keiyoushi.lib.i18n.Intl
+import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
 import keiyoushi.source.KeiSource
@@ -98,7 +99,7 @@ abstract class ImperioManhwa :
     }
 
     private suspend fun listing(url: HttpUrl): MangasPage {
-        val props = client.get(url).asJsoup().inertiaPage<ListingProps>().props
+        val props = client.get(url, Fetch.DOCUMENT).asJsoup().inertiaPage<ListingProps>().props
         return MangasPage(props.series.map { it.toSManga() }, props.pagination.next != null)
     }
 
@@ -115,13 +116,14 @@ abstract class ImperioManhwa :
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val props = client.get(getMangaUrl(manga)).asJsoup().inertiaPage<SeriesProps>().props
-
+        val props = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup().inertiaPage<SeriesProps>().props
+        // A labelled tag row holds something else, like the series' groups
         props.series.applyTo(manga, intl["alt_names"], withTags = props.tagsLabel == null)
         if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
+        // Dates from the series page, the rest from the full chapter list
         val all = if (props.chaptersPagination.last > 1) {
-            client.get(baseHttpUrl.resolve(props.series.url)!!.resolve("${props.paths.chapters}.json")!!).parseAs<ChapterListDto>().items
+            client.get(baseHttpUrl.resolve(props.series.url)!!.resolve("${props.paths.chapters}.json")!!, Fetch.XHR).parseAs<ChapterListDto>().items
         } else {
             props.chapters
         }
@@ -134,6 +136,9 @@ abstract class ImperioManhwa :
         )
     }
 
+    // The full list's labels have no year ("24 Sep", "24 ago."). Newest first from the series page's dated
+    // rows, each takes the latest year that isn't more than two months after the row above (rows run up to
+    // a month out of order)
     private fun uploadDates(chapters: List<ChapterDto>): List<Long> {
         var previous: LocalDate? = null
         return chapters.map { chapter ->
@@ -153,23 +158,25 @@ abstract class ImperioManhwa :
         }
     }
 
+    // Madara-era search results: a post id, with the path in memo
     override fun getMangaUrl(manga: SManga): String {
         val path = manga.memo["path"]?.stringOrNull?.takeIf { manga.url.all(Char::isDigit) } ?: manga.url
         return baseUrl + path
     }
 
+    // Madara-era chapters: a bare slug, with the series path in memo
     override fun getChapterUrl(chapter: SChapter): String {
         val mangaPath = chapter.memo["mangaPath"]?.stringOrNull?.takeIf { '/' !in chapter.url }
         return baseUrl + (mangaPath?.let { "${it.trimEnd('/')}/${chapter.url}/" } ?: chapter.url)
     }
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val document = client.get(getChapterUrl(chapter)).asJsoup()
+        val document = client.get(getChapterUrl(chapter), Fetch.DOCUMENT).asJsoup()
         val page = document.inertiaPage<JsonElement>()
         if (page.component == "Reader/Locked") return emptyList()
 
         val props = page.props.parseAs<ReaderProps>()
-
+        // Inline first page, then the sealed rest from the site's reader
         val pages = if (props.dims.isEmpty()) {
             props.pages
         } else {
@@ -187,8 +194,11 @@ abstract class ImperioManhwa :
         }
     }
 
+    // One reader WebView at a time
     private val readerMutex = Mutex()
 
+    // A manifest can answer 428 with a Turnstile sitekey. Cloudflare's script is blocked in the reader, so
+    // reader.js shims window.turnstile to hand the sitekey back, then the solved token on a second run
     private suspend fun openReader(input: ReaderInput, chapterUrl: String): List<PageDto> {
         val first = runReader(input)
         val result = first.sitekey?.let { sitekey ->
@@ -226,7 +236,7 @@ abstract class ImperioManhwa :
     override val supportsFilterFetching = true
 
     override suspend fun fetchFilterData(): JsonElement {
-        val props = client.get(baseUrl).asJsoup().inertiaPage<HomeProps>().props
+        val props = client.get(baseUrl, Fetch.DOCUMENT).asJsoup().inertiaPage<HomeProps>().props
         return FilterData(props.genres, props.content.sections).toJsonElement()
     }
 
@@ -308,6 +318,7 @@ abstract class ImperioManhwa :
 
         private val DATE_LABEL = Regex("""(\d{1,2}) (\p{L}{3})\p{L}*\.?""")
 
+        // English and Spanish month abbreviations
         private val MONTHS = listOf(
             "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
             "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",

@@ -112,7 +112,11 @@ abstract class CapibaraTraductor :
     private suspend fun parseMangaList(url: HttpUrl, page: Int, headers: Headers): MangasPage {
         val result = client.get(url, headers, Fetch.XHR).parseAs<Data<SeriesListDataDto>>()
 
-        val mangas = result.data.series.map { it.toSManga() }
+        val mangas = result.data.series
+            .filter { series ->
+                !hideLocked || (series.requireLogin ?: false) == false
+            }
+            .map { it.toSManga() }
         val hasNextPage = page < result.data.maxPage
 
         return MangasPage(mangas, hasNextPage)
@@ -160,9 +164,6 @@ abstract class CapibaraTraductor :
         val now = Clock.System.now().toEpochMilliseconds()
         val chapterList = result.chapters
             ?.filter { !it.isUnreleased }
-            ?.filter {
-                if (hideLocked) !it.requireLogin else true
-            }
             ?.map { it.toSChapter(seriesSlug, organizationSlug, result.chapterLabelMode, jointSlug) }
             ?.filter { it.date_upload < now }
             ?: emptyList()

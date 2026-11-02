@@ -103,6 +103,12 @@ abstract class CapibaraTraductor :
         .addQueryParameter("page", page.toString())
         .addQueryParameter("limit", PAGE_LIMIT.toString())
         .addQueryParameter("type", COMIC_TYPES)
+        .apply {
+            if (hide18Plus) {
+                addQueryParameter("nsfw", "false")
+            }
+        }
+
 
     private suspend fun parseMangaList(url: HttpUrl, page: Int, headers: Headers): MangasPage {
         val result = client.get(url, headers, Fetch.XHR).parseAs<Data<SeriesListDataDto>>()

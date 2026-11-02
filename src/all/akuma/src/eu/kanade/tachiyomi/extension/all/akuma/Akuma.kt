@@ -13,6 +13,8 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import eu.kanade.tachiyomi.source.model.UpdateStrategy
 import keiyoushi.annotation.Source
+import keiyoushi.network.Fetch
+import keiyoushi.network.fetch
 import keiyoushi.network.get
 import keiyoushi.network.post
 import keiyoushi.network.rateLimit
@@ -94,7 +96,7 @@ abstract class Akuma :
 
     private fun getToken(): String {
         if (storedToken.isNullOrEmpty()) {
-            val request = GET(baseUrl, headers)
+            val request = GET(baseUrl, headers).newBuilder().fetch(Fetch.DOCUMENT).build()
             val response = client.newCall(request).execute()
 
             val document = response.asJsoup()
@@ -189,7 +191,7 @@ abstract class Akuma :
             .add("view", "3")
             .build()
 
-        return parseSearch(client.post(url.build(), payload))
+        return parseSearch(client.post(url.build(), Fetch.DOCUMENT, payload))
     }
 
     private fun parseSearch(response: Response): MangasPage {
@@ -224,7 +226,7 @@ abstract class Akuma :
         fetchDetails: Boolean,
         fetchChapters: Boolean,
     ): SMangaUpdate {
-        val doc = client.get(getMangaUrl(manga)).asJsoup()
+        val doc = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup()
         return SMangaUpdate(
             manga = mangaDetailsParse(doc),
             chapters = chapterListParse(doc),
@@ -281,7 +283,7 @@ abstract class Akuma :
     )
 
     override suspend fun getPageList(chapter: SChapter): List<Page> {
-        val document = client.get(getChapterUrl(chapter)).asJsoup()
+        val document = client.get(getChapterUrl(chapter), Fetch.DOCUMENT).asJsoup()
         val totalPages = document.select(".nav-select option").last()
             ?.attr("value")?.toIntOrNull() ?: return emptyList()
 
@@ -296,7 +298,7 @@ abstract class Akuma :
         }
     }
 
-    override suspend fun getImageUrl(page: Page): String = client.get(page.url).asJsoup().select(".entry-content img").attr("abs:src")
+    override suspend fun getImageUrl(page: Page): String = client.get(page.url, Fetch.DOCUMENT).asJsoup().select(".entry-content img").attr("abs:src")
 
     override fun getFilterList(data: JsonElement?): FilterList = getFilters()
 

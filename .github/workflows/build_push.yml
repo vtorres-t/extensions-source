@@ -45,6 +45,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Remove English modules
+        run: rm -rf src/en
+
       - id: base
         name: Get last successful CI commit
         env:

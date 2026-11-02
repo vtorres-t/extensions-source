@@ -11,7 +11,6 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import keiyoushi.lib.i18n.Intl
 import keiyoushi.network.Fetch
 import keiyoushi.network.get
 import keiyoushi.network.rateLimit
@@ -47,13 +46,6 @@ abstract class ImperioManhwa :
 
     /** The site's search route, `paths.search` in its props */
     protected open val searchPath = "search"
-
-    private val intl = Intl(
-        language = lang,
-        baseLanguage = "en",
-        availableLanguages = setOf("en", "es"),
-        classLoader = this::class.java.classLoader!!,
-    )
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
@@ -118,7 +110,7 @@ abstract class ImperioManhwa :
     ): SMangaUpdate {
         val props = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup().inertiaPage<SeriesProps>().props
         // A labelled tag row holds something else, like the series' groups
-        props.series.applyTo(manga, intl["alt_names"], withTags = props.tagsLabel == null)
+        props.series.applyTo(manga, "Nombres alternativos", withTags = props.tagsLabel == null)
         if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
         // Dates from the series page, the rest from the full chapter list

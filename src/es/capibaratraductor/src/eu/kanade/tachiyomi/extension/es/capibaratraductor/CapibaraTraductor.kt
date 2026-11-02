@@ -161,6 +161,9 @@ abstract class CapibaraTraductor :
         val now = Clock.System.now().toEpochMilliseconds()
         val chapterList = result.chapters
             ?.filter { !it.isUnreleased }
+            ?.filter {
+                if (hideLocked) !it.requireLogin else true
+            }
             ?.map { it.toSChapter(seriesSlug, organizationSlug, result.chapterLabelMode, jointSlug) }
             ?.filter { it.date_upload < now }
             ?: emptyList()
@@ -339,12 +342,21 @@ abstract class CapibaraTraductor :
 
     private val hide18Plus get() = preferences.getBoolean(HIDE_18_PLUS, HIDE_18_PLUS_DEFAULT)
 
+    private val hideLocked get() = preferences.getBoolean(HIDE_LOCKED, HIDE_LOCKED_DEFAULT)
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = eu.kanade.tachiyomi.extension.es.capibaratraductor.CapibaraTraductor.Companion.HIDE_18_PLUS
             title = "Filtrar contenido +18"
             summary = "Ocultar mangas para adultos en las búsquedas y listados"
             setDefaultValue(eu.kanade.tachiyomi.extension.es.capibaratraductor.CapibaraTraductor.Companion.HIDE_18_PLUS_DEFAULT)
+        }.also(screen::addPreference)
+
+        SwitchPreferenceCompat(screen.context).apply {
+            key = eu.kanade.tachiyomi.extension.es.capibaratraductor.CapibaraTraductor.Companion.HIDE_LOCKED
+            title = "Filtrar contenido bloqueado"
+            summary = "Ocultar mangas bloqueados"
+            setDefaultValue(eu.kanade.tachiyomi.extension.es.capibaratraductor.CapibaraTraductor.Companion.HIDE_LOCKED_DEFAULT)
         }.also(screen::addPreference)
     }
 
@@ -353,6 +365,9 @@ abstract class CapibaraTraductor :
 
         private const val HIDE_18_PLUS = "hide18Plus"
         private const val HIDE_18_PLUS_DEFAULT = true
+
+        private const val HIDE_LOCKED = "hideLocked"
+        private const val HIDE_LOCKED_DEFAULT = true
 
         private const val COMIC_TYPES = "manga,manhwa,manhua"
     }

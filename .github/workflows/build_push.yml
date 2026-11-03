@@ -57,7 +57,7 @@ jobs:
             echo "Keep not Spanish  modules: CI_CHUNK_SIZE set to 35"
           else
             echo "CI_CHUNK_SIZE=7" >> "$GITHUB_ENV"
-            echo "Removing not Spanish modules: CI_CHUNK_SIZE set to 14"
+            echo "Removing not Spanish modules: CI_CHUNK_SIZE set to 7"
             rm -rf src/en src/all
           fi
 

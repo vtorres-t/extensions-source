@@ -6,14 +6,16 @@ plugins {
 
 keiyoushi {
     name = "Kagane"
-    versionCode = 39
+    versionCode = 40
     contentWarning = ContentWarning.MIXED
     libVersion = "1.6"
 
     listOf("en", "es", "es-419").forEach {
         source {
             lang = it
-            baseUrl = "https://kagane.moe"
+            baseUrl {
+                mirrors("https://kagane.moe")
+            }
         }
     }
 

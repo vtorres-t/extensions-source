@@ -77,7 +77,7 @@ def get_release_tag(batch_index: int, release_count: int) -> str:
 
 
 def main():
-    new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool]] = []
+    new_extensions: list[tuple[index_pb2.Extension, bool, Path, bool]] = []
     extensiones_cargadas = []
 
     for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
@@ -141,7 +141,7 @@ def main():
                 for source in info["sources"]
             ],
         )
-        new_extensions.append((ext, _, jar, changed))
+        new_extensions.append((ext, false, jar, changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 

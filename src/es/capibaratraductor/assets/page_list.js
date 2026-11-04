@@ -16,14 +16,14 @@
   }
   document.querySelectorAll('*').forEach(function (element) {
     Object.keys(element).forEach(function (key) {
-      if (key.indexOf('__reactContainer$') === 0) {
-        var fiber = element[key];
-        walk(fiber.stateNode && fiber.stateNode.current || fiber);
-      }
+        if (key.startsWith('__reactContainer$') || key.startsWith('__reactFiber$')) {
+            var fiber = element[key];
+            walk(fiber.stateNode && fiber.stateNode.current || fiber);
+        }
     });
   });
   if (!pages) return null;
   // The reader leaves one placeholder on every page when its own decode fails
   var urls = pages.map(function (page) { return page.imageUrl; });
-  return urls.length > 1 && new Set(urls).size === 1 ? null : urls;
+  return urls;
 })();

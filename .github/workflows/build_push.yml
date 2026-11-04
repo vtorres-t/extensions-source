@@ -174,7 +174,7 @@ jobs:
         run: |
           TASKS=()
           for module in $MODULES; do
-            TASKS+=("${module}:jar")
+            TASKS+=("${module}:assembleRelease")
           done
           ./gradlew "${TASKS[@]}"
 

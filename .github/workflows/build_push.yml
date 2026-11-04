@@ -18,7 +18,7 @@ on:
         description: Rebuild and republish every extension instead of only what changed since the last successful run
         type: boolean
         default: false
-      include_not_es:
+      include_not_extra:
         description: Include and build not Spanish ('es') modules
         type: boolean
         default: false
@@ -52,13 +52,51 @@ jobs:
 
       - name: Set dynamic CI_CHUNK_SIZE and clean modules
         run: |
-          if [ "${{ inputs.include_not_es }}" = "true" ]; then
+          if [ "${{ inputs.include_not_extra }}" = "true" ]; then
             echo "CI_CHUNK_SIZE=35" >> "$GITHUB_ENV"
             echo "Keep not Spanish  modules: CI_CHUNK_SIZE set to 35"
           else
             echo "CI_CHUNK_SIZE=6" >> "$GITHUB_ENV"
             echo "Removing not Spanish modules: CI_CHUNK_SIZE set to 6"
-            rm -rf src/en src/all
+          
+             # 1. Crear una expresión regular con los paths a ignorar para preservarlos
+            IGNORE_REGEX=""
+            if [ -f .extraignorepaths ]; then
+              while IFS= read -r ipath || [ -n "$ipath" ]; do
+                ipath=$(echo "$ipath" | xargs)
+                [[ -z "$ipath" || "$ipath" == \#* ]] && continue
+                # Escapamos la ruta para la regex de grep
+                escaped_ipath=$(echo "$ipath" | sed 's/[.[\*^$]/\\&/g')
+                if [ -z "$IGNORE_REGEX" ]; then
+                  IGNORE_REGEX="^${escaped_ipath}\(/\|$\)"
+                else
+                  IGNORE_REGEX="${IGNORE_REGEX}\|^${escaped_ipath}\(/\|$\)"
+                fi
+              done < .extraignorepaths
+            fi
+
+            # 2. Iterar sobre las rutas a limpiar y buscar sus elementos internos de forma segura
+            if [ -f .extracleanpaths ]; then
+              while IFS= read -r cpath || [ -n "$cpath" ]; do
+                cpath=$(echo "$cpath" | xargs)
+                [[ -z "$cpath" || "$cpath" == \#* ]] && continue
+          
+                if [ -d "$cpath" ]; then
+                  # Listamos todos los archivos/directorios de primer nivel dentro del path a limpiar
+                  find "$cpath" -mindepth 1 -maxdepth 1 | while read -r item; do
+                    # Si hay reglas de ignorado, validamos que el item no coincida ni sea padre del ignorado
+                    if [ -n "$IGNORE_REGEX" ]; then
+                      if echo "$item" | grep -q "$IGNORE_REGEX"; then
+                        echo "Preserving (ignored matches): $item"
+                        continue
+                      fi
+                    fi
+                    # Si pasa los filtros, se elimina con seguridad
+                    rm -rf "$item"
+                  done
+                fi
+              done < .extracleanpaths
+            fi
           fi
 
       - id: base
@@ -107,8 +145,46 @@ jobs:
           persist-credentials: false
 
       - name: Remove English modules if disabled
-        if: ${{ inputs.include_not_es != true }}
-        run: rm -rf src/en src/all
+        if: ${{ inputs.include_not_extra != true }}
+        run: |
+             # 1. Crear una expresión regular con los paths a ignorar para preservarlos
+            IGNORE_REGEX=""
+            if [ -f .extraignorepaths ]; then
+              while IFS= read -r ipath || [ -n "$ipath" ]; do
+                ipath=$(echo "$ipath" | xargs)
+                [[ -z "$ipath" || "$ipath" == \#* ]] && continue
+                # Escapamos la ruta para la regex de grep
+                escaped_ipath=$(echo "$ipath" | sed 's/[.[\*^$]/\\&/g')
+                if [ -z "$IGNORE_REGEX" ]; then
+                  IGNORE_REGEX="^${escaped_ipath}\(/\|$\)"
+                else
+                  IGNORE_REGEX="${IGNORE_REGEX}\|^${escaped_ipath}\(/\|$\)"
+                fi
+              done < .extraignorepaths
+            fi
+          
+            # 2. Iterar sobre las rutas a limpiar y buscar sus elementos internos de forma segura
+            if [ -f .extracleanpaths ]; then
+              while IFS= read -r cpath || [ -n "$cpath" ]; do
+                cpath=$(echo "$cpath" | xargs)
+                [[ -z "$cpath" || "$cpath" == \#* ]] && continue
+          
+                if [ -d "$cpath" ]; then
+                  # Listamos todos los archivos/directorios de primer nivel dentro del path a limpiar
+                  find "$cpath" -mindepth 1 -maxdepth 1 | while read -r item; do
+                    # Si hay reglas de ignorado, validamos que el item no coincida ni sea padre del ignorado
+                    if [ -n "$IGNORE_REGEX" ]; then
+                      if echo "$item" | grep -q "$IGNORE_REGEX"; then
+                        echo "Preserving (ignored matches): $item"
+                        continue
+                      fi
+                    fi
+                    # Si pasa los filtros, se elimina con seguridad
+                    rm -rf "$item"
+                  done
+                fi
+              done < .extracleanpaths
+            fi
 
       - name: Set up Java
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0

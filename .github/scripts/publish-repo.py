@@ -141,7 +141,7 @@ def main():
                 for source in info["sources"]
             ],
         )
-        new_extensions.append((ext, apk, jar, changed))
+        new_extensions.append((ext, _, jar, changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 

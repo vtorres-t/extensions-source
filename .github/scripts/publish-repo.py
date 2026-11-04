@@ -160,12 +160,12 @@ def main():
     for ext, apk, jar, changed in new_extensions:
         if changed:
             tag = get_release_tag(changed_index // ext_per_release, release_count)
-            ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
+            ext.resources.apkUrl = "" # f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
             ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
             changed_index += 1
         else:
             old_resources = remote_extensions[ext.packageName].resources
-            ext.resources.apkUrl = old_resources.apkUrl
+            ext.resources.apkUrl = "" # old_resources.apkUrl
             ext.resources.jarUrl = old_resources.jarUrl
 
     # Merge with the already-published index, dropping the deleted/rebuilt modules.
@@ -210,9 +210,9 @@ def main():
            '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<title>apks</title>\n</head>\n<body>\n<pre>\n'
        )
        for ext in final_extensions:
-           apk_escaped = html.escape(ext.resources.apkUrl)
+           jar_escaped  = html.escape(ext.resources.jarUrl)
            name_escaped = html.escape(f"Tachiyomi: {ext.name}")
-           f.write(f'<a href="{apk_escaped}">{name_escaped}</a>\n')
+           f.write(f'<a href="{jar_escaped}">{name_escaped}</a>\n')
        f.write("</pre>\n</body>\n</html>\n")
 
     # --- Upload assets as release ---
@@ -222,7 +222,7 @@ def main():
     for i in range(0, total_changed_extensions, ext_per_release):
         batch = changed_extensions[i : i + ext_per_release]
         tag = get_release_tag(i // ext_per_release, release_count)
-        files_to_upload = [file for _, apk, jar, _ in batch for file in (apk, jar)]
+        files_to_upload = [file for _, _, jar, _ in batch]
 
         create_release(tag)
         upload_assets(tag, files_to_upload)

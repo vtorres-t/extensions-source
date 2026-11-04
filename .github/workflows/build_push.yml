@@ -174,7 +174,7 @@ jobs:
         run: |
           TASKS=()
           for module in $MODULES; do
-            TASKS+=("${module}:assembleRelease")
+            TASKS+=("${module}:jar")
           done
           ./gradlew "${TASKS[@]}"
 
@@ -184,7 +184,7 @@ jobs:
         with:
           name: "individual-apks-${{ matrix.chunk.number }}"
           path: |
-            **/build/outputs/apk/release/*.apk
+#            **/build/outputs/apk/release/*.apk
             **/build/outputs/jar/release/*.jar
             **/build/keiyoushi-source-info.json
           retention-days: 1

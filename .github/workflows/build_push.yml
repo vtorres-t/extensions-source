@@ -59,44 +59,47 @@ jobs:
             echo "CI_CHUNK_SIZE=6" >> "$GITHUB_ENV"
             echo "Removing not Spanish modules: CI_CHUNK_SIZE set to 6"
           
-             # 1. Crear una expresión regular con los paths a ignorar para preservarlos
-            IGNORE_REGEX=""
+            PRUNE_ARGS=()
             if [ -f .extraignorepaths ]; then
-              while IFS= read -r ipath || [ -n "$ipath" ]; do
-                ipath=$(echo "$ipath" | xargs)
-                [[ -z "$ipath" || "$ipath" == \#* ]] && continue
-                # Escapamos la ruta para la regex de grep
-                escaped_ipath=$(echo "$ipath" | sed 's/[.[\*^$]/\\&/g')
-                if [ -z "$IGNORE_REGEX" ]; then
-                  IGNORE_REGEX="^${escaped_ipath}\(/\|$\)"
-                else
-                  IGNORE_REGEX="${IGNORE_REGEX}\|^${escaped_ipath}\(/\|$\)"
-                fi
-              done < .extraignorepaths
+            while IFS= read -r ipath || [ -n "$ipath" ]; do
+            ipath=$(echo "$ipath" | xargs)
+            [[ -z "$ipath" || "$ipath" == \#* ]] && continue
+            
+            # Si ya hay elementos en el array, añadimos el operador '-o' (OR)
+            if [ ${#PRUNE_ARGS[@]} -gt 0 ]; then
+            PRUNE_ARGS+=("-o")
+            fi
+            # Agregamos la ruta a excluir
+            PRUNE_ARGS+=("-path" "$ipath")
+            done < .extraignorepaths
             fi
 
-            # 2. Iterar sobre las rutas a limpiar y buscar sus elementos internos de forma segura
             if [ -f .extracleanpaths ]; then
-              while IFS= read -r cpath || [ -n "$cpath" ]; do
-                cpath=$(echo "$cpath" | xargs)
-                [[ -z "$cpath" || "$cpath" == \#* ]] && continue
-          
-                if [ -d "$cpath" ]; then
-                  # Listamos todos los archivos/directorios de primer nivel dentro del path a limpiar
-                  find "$cpath" -mindepth 1 -maxdepth 1 | while read -r item; do
-                    # Si hay reglas de ignorado, validamos que el item no coincida ni sea padre del ignorado
-                    if [ -n "$IGNORE_REGEX" ]; then
-                      if echo "$item" | grep -q "$IGNORE_REGEX"; then
-                        echo "Preserving (ignored matches): $item"
-                        continue
-                      fi
-                    fi
-                    # Si pasa los filtros, se elimina con seguridad
-                    rm -rf "$item"
-                  done
-                fi
-              done < .extracleanpaths
+            while IFS= read -r cpath || [ -n "$cpath" ]; do
+            cpath=$(echo "$cpath" | xargs)
+            [[ -z "$cpath" || "$cpath" == \#* ]] && continue
+            
+            if [ -d "$cpath" ]; then
+            echo "Limpiando el directorio: $cpath"
+            
+            # Si existen reglas de ignorar, usamos -prune para proteger esas rutas y sus hijos
+            if [ ${#PRUNE_ARGS[@]} -gt 0 ]; then
+            find "$cpath" -mindepth 1 \( \( "${PRUNE_ARGS[@]}" \) -prune \) -o -print0 | while IFS= read -r -d '' item; do
+            # Comprobamos que el item realmente exista antes de borrar 
+            # (por si un borrado de carpeta padre previa ya lo eliminó)
+            if [ -e "$item" ]; then
+            rm -rf "$item"
             fi
+            done
+            else
+            # Si no hay nada que ignorar, vaciamos el directorio directamente de forma segura
+            find "$cpath" -mindepth 1 -maxdepth 1 -print0 | while IFS= read -r -d '' item; do
+            rm -rf "$item"
+            done
+            fi
+            fi
+            done < .extracleanpaths
+          fi
           fi
 
       - id: base
@@ -147,40 +150,49 @@ jobs:
       - name: Remove Extra modules if disabled
         if: ${{ inputs.include_not_extra != true }}
         run: |
-            IGNORE_REGEX=""
-            if [ -f .extraignorepaths ]; then
-              while IFS= read -r ipath || [ -n "$ipath" ]; do
-                ipath=$(echo "$ipath" | xargs)
-                [[ -z "$ipath" || "$ipath" == \#* ]] && continue
-                # Escapamos la ruta para la regex de grep
-                escaped_ipath=$(echo "$ipath" | sed 's/[.[\*^$]/\\&/g')
-                if [ -z "$IGNORE_REGEX" ]; then
-                  IGNORE_REGEX="^${escaped_ipath}\(/\|$\)"
-                else
-                  IGNORE_REGEX="${IGNORE_REGEX}\|^${escaped_ipath}\(/\|$\)"
-                fi
-              done < .extraignorepaths
-            fi
-          
-            if [ -f .extracleanpaths ]; then
-              while IFS= read -r cpath || [ -n "$cpath" ]; do
-                cpath=$(echo "$cpath" | xargs)
-                [[ -z "$cpath" || "$cpath" == \#* ]] && continue
-          
-                if [ -d "$cpath" ]; then
-                  find "$cpath" -mindepth 1 -maxdepth 1 | while read -r item; do
-                    # Si hay reglas de ignorado, validamos que el item no coincida ni sea padre del ignorado
-                    if [ -n "$IGNORE_REGEX" ]; then
-                      if echo "$item" | grep -q "$IGNORE_REGEX"; then
-                        echo "Preserving (ignored matches): $item"
-                        continue
-                      fi
+          # 1. Construimos los argumentos de exclusión para el comando 'find'
+          PRUNE_ARGS=()
+          if [ -f .extraignorepaths ]; then
+            while IFS= read -r ipath || [ -n "$ipath" ]; do
+              ipath=$(echo "$ipath" | xargs)
+              [[ -z "$ipath" || "$ipath" == \#* ]] && continue
+
+              # Si ya hay elementos en el array, añadimos el operador '-o' (OR)
+              if [ ${#PRUNE_ARGS[@]} -gt 0 ]; then
+                PRUNE_ARGS+=("-o")
+              fi
+              # Agregamos la ruta a excluir
+              PRUNE_ARGS+=("-path" "$ipath")
+            done < .extraignorepaths
+          fi
+
+          # 2. Ejecutamos la limpieza sobre los directorios correspondientes
+          if [ -f .extracleanpaths ]; then
+            while IFS= read -r cpath || [ -n "$cpath" ]; do
+              cpath=$(echo "$cpath" | xargs)
+              [[ -z "$cpath" || "$cpath" == \#* ]] && continue
+
+              if [ -d "$cpath" ]; then
+                echo "Limpiando el directorio: $cpath"
+
+                # Si existen reglas de ignorar, usamos -prune para proteger esas rutas y sus hijos
+                if [ ${#PRUNE_ARGS[@]} -gt 0 ]; then
+                  find "$cpath" -mindepth 1 \( \( "${PRUNE_ARGS[@]}" \) -prune \) -o -print0 | while IFS= read -r -d '' item; do
+                    # Comprobamos que el item realmente exista antes de borrar 
+                    # (por si un borrado de carpeta padre previa ya lo eliminó)
+                    if [ -e "$item" ]; then
+                      rm -rf "$item"
                     fi
+                  done
+                else
+                  # Si no hay nada que ignorar, vaciamos el directorio directamente de forma segura
+                  find "$cpath" -mindepth 1 -maxdepth 1 -print0 | while IFS= read -r -d '' item; do
                     rm -rf "$item"
                   done
                 fi
-              done < .extracleanpaths
-            fi
+              fi
+            done < .extracleanpaths
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0

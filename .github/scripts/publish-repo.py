@@ -96,11 +96,11 @@ def main():
             print(f"❌ Omitiendo extensión (Todas sus fuentes están caídas): {info['name']}")
             continue
 
-        apk = next((info_file.parent / "outputs/apk/release").glob("*.apk"), None)
-        if apk is None:
-            raise FileNotFoundError(
-                f"{package_name}: no release apk found under {info_file.parent}"
-            )
+#         apk = next((info_file.parent / "outputs/apk/release").glob("*.apk"), None)
+#         if apk is None:
+#             raise FileNotFoundError(
+#                 f"{package_name}: no release apk found under {info_file.parent}"
+#             )
 
         jar = next((info_file.parent / "outputs/jar/release").glob("*.jar"), None)
         if jar is None:

@@ -47,6 +47,13 @@ abstract class ImperioManhwa :
     /** The site's search route, `paths.search` in its props */
     protected open val searchPath = "search"
 
+    private val intl = Intl(
+        language = lang,
+        baseLanguage = "en",
+        availableLanguages = setOf("en", "es"),
+        classLoader = this::class.java.classLoader!!,
+    )
+
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
     override fun OkHttpClient.Builder.configureClient() = rateLimit(2) { it.host == baseHttpUrl.host }
@@ -110,7 +117,7 @@ abstract class ImperioManhwa :
     ): SMangaUpdate {
         val props = client.get(getMangaUrl(manga), Fetch.DOCUMENT).asJsoup().inertiaPage<SeriesProps>().props
         // A labelled tag row holds something else, like the series' groups
-        props.series.applyTo(manga, "Nombres alternativos", withTags = props.tagsLabel == null)
+        props.series.applyTo(manga, intl["alt_names"], withTags = props.tagsLabel == null)
         if (!fetchChapters) return SMangaUpdate(manga, chapters)
 
         // Dates from the series page, the rest from the full chapter list
@@ -234,34 +241,17 @@ abstract class ImperioManhwa :
 
     override fun getFilterList(data: JsonElement?): FilterList {
         val filterData = data?.parseAs<FilterData>()
-        val all = "Todos" to ""
-
-        val sortMap = mapOf(
-            "reciente" to "Recientes",
-            "nuevas" to "Nuevas",
-            "vistas" to "Más vistas",
-            "valoradas" to "Mejor valoradas",
-            "seguidas" to "Más seguidas",
-            "alfabetico" to "A-Z",
-        )
-
-        val statusMap = mapOf(
-            "ongoing" to "En curso",
-            "completed" to "Finalizado",
-            "hiatus" to "En pausa",
-            "cancelled" to "Cancelado",
-        )
-
+        val all = intl["all"] to ""
         return FilterList(
             listOfNotNull(
-                QueryFilter("Ordenar por", "orden", SORTS.map { (sortMap[it] ?: it) to it }, SORTS.indexOf("vistas")),
+                QueryFilter(intl["sort_title"], "orden", SORTS.map { intl["sort_$it"] to it }, SORTS.indexOf("vistas")),
                 filterData?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
-                    QueryFilter("Género", "genero", listOf(all) + genres.map { it.name to it.slug })
+                    QueryFilter(intl["genre_title"], "genero", listOf(all) + genres.map { it.name to it.slug })
                 },
-                QueryFilter("Tipo", "tipo", listOf(all) + TYPES.map { it.replaceFirstChar(Char::uppercase) to it }),
-                QueryFilter("Estado", "estado", listOf(all) + STATUSES.map { (statusMap[it] ?: it) to it }),
+                QueryFilter(intl["type_title"], "tipo", listOf(all) + TYPES.map { it.replaceFirstChar(Char::uppercase) to it }),
+                QueryFilter(intl["status_title"], "estado", listOf(all) + STATUSES.map { intl["status_$it"] to it }),
                 filterData?.sections?.takeIf { it.isNotEmpty() }?.let { sections ->
-                    QueryFilter("Sección", "seccion", listOf(all) + sections.map { it.label to it.code })
+                    QueryFilter(intl["section_title"], "seccion", listOf(all) + sections.map { it.label to it.code })
                 },
             ),
         )
@@ -278,11 +268,11 @@ abstract class ImperioManhwa :
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = REMOVE_PREMIUM_CHAPTERS
-            title = "Filtrar capítulos VIP"
-            summary = "Oculta automáticamente los capítulos VIP"
+            title = intl["hide_locked_title"]
+            summary = intl["hide_locked_summary"]
             setDefaultValue(REMOVE_PREMIUM_CHAPTERS_DEFAULT)
             setOnPreferenceChangeListener { _, _ ->
-                Toast.makeText(screen.context, "Para aplicar los cambios, actualiza la lista de capítulos", Toast.LENGTH_LONG).show()
+                Toast.makeText(screen.context, intl["hide_locked_toast"], Toast.LENGTH_LONG).show()
                 true
             }
         }.also(screen::addPreference)

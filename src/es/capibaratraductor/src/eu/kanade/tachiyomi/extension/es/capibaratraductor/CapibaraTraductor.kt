@@ -181,6 +181,7 @@ abstract class CapibaraTraductor :
         }
     }
 
+    // The site's reader decodes the page tokens and removes decoy pages, read its result
     override suspend fun getPageList(chapter: SChapter): List<Page> {
         val (chapterSlug, seriesSlug, organizationSlug) = chapter.url.split("/", limit = 3)
         val seriesPath = if (chapter.memo["jointId"] != null) {

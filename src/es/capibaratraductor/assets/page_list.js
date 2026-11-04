@@ -1,43 +1,43 @@
-(async function () {
+(function () {
     function isPages(list) {
         return Array.isArray(list) && list.length > 0 && list.every(function (page) {
-            return page && typeof page.imageUrl === 'string' && /^https?:/.test(page.imageUrl) && typeof page.number === 'number' && typeof page.chapterId === 'number';
+            return page && typeof page.imageUrl === 'string' && /^https?:/.test(page.imageUrl);
         });
     }
 
-    function getPages() {
-        var pages = null;
-        function walk(fiber) {
-            for (; fiber; fiber = fiber.sibling) {
-                for (var hook = fiber.memoizedState; hook && typeof hook === 'object' && 'next' in hook && 'queue' in hook; hook = hook.next) {
-                    if (isPages(hook.memoizedState) && (!pages || hook.memoizedState.length > pages.length)) pages = hook.memoizedState;
+    var urls = [];
+
+    // 1. Intento clásico por árbol de componentes de React
+    document.querySelectorAll('*').forEach(function (element) {
+        Object.keys(element).forEach(function (key) {
+            if (key.startsWith('__reactContainer$') || key.startsWith('__reactFiber$') || key.indexOf('__reactContainer$') === 0) {
+                var fiber = element[key];
+                var current = fiber.stateNode && fiber.stateNode.current || fiber;
+                for (; current; current = current.sibling) {
+                    for (var hook = current.memoizedState; hook && typeof hook === 'object'; hook = hook.next) {
+                        if (hook.memoizedState && isPages(hook.memoizedState)) {
+                            urls = hook.memoizedState.map(function (p) { return p.imageUrl; });
+                            if (urls.length > 0) return;
+                        }
+                    }
+                    if (urls.length > 0) return;
                 }
-                if (fiber.child) walk(fiber.child);
             }
-        }
-        document.querySelectorAll('*').forEach(function (element) {
-            Object.keys(element).forEach(function (key) {
-                if (key.startsWith('__reactContainer$') || key.startsWith('__reactFiber$') || key.indexOf('__reactContainer$') === 0) {
-                    var fiber = element[key];
-                    walk(fiber.stateNode && fiber.stateNode.current || fiber);
-                }
-            });
         });
-        return pages;
-    }
+        if (urls.length > 0) return;
+    });
 
-    // Bucle de reintento: Espera hasta 5 segundos (50 intentos x 100ms) a que React monte las imágenes
-    for (var i = 0; i < 50; i++) {
-        var foundPages = getPages();
-        if (foundPages && foundPages.length > 0) {
-            var urls = foundPages.map(function (page) { return page.imageUrl; });
-            if (urls.length > 0) {
-                return urls;
-            }
+    if (urls.length > 0) return urls;
+
+    // 2. Extractor de respaldo por fuerza bruta en el DOM (en caso de que React no haya inicializado el árbol)
+    var allImages = document.querySelectorAll('img');
+    var extracted = [];
+    allImages.forEach(function(img) {
+        var src = img.src || img.getAttribute('data-src') || img.getAttribute('lazy-src');
+        if (src && (src.includes('capibaratraductor.com') || src.includes('r2.')) && src.match(/\.(webp|jpg|jpeg|png)/i)) {
+            if (!extracted.includes(src)) extracted.push(src);
         }
-        // Pausa de 100 milisegundos antes del próximo intento
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    });
 
-    return null;
+    return extracted.length > 0 ? extracted : null;
 })();

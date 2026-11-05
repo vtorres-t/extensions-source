@@ -160,12 +160,12 @@ def main():
     for ext, apk, jar, changed in new_extensions:
         if changed:
             tag = get_release_tag(changed_index // ext_per_release, release_count)
-            ext.resources.apkUrl = "" # f"{RELEASE_BASE_URL}/{tag}/{apk.name}"
+            ext.resources.apkUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name.with_suffix('.apk')}"
             ext.resources.jarUrl = f"{RELEASE_BASE_URL}/{tag}/{jar.name}"
             changed_index += 1
         else:
             old_resources = remote_extensions[ext.packageName].resources
-            ext.resources.apkUrl = "" # old_resources.apkUrl
+            ext.resources.apkUrl = old_resources.apkUrl
             ext.resources.jarUrl = old_resources.jarUrl
 
     # Merge with the already-published index, dropping the deleted/rebuilt modules.

@@ -77,7 +77,7 @@ def get_release_tag(batch_index: int, release_count: int) -> str:
 
 
 def main():
-    new_extensions: list[tuple[index_pb2.Extension, bool, Path, bool]] = []
+    new_extensions: list[tuple[index_pb2.Extension, Path, Path, bool]] = []
     extensiones_cargadas = []
 
     for info_file in ARTIFACTS_DIR.glob("**/keiyoushi-source-info.json"):
@@ -141,7 +141,7 @@ def main():
                 for source in info["sources"]
             ],
         )
-        new_extensions.append((ext, False, jar, changed))
+        new_extensions.append((ext, apk, jar, changed))
 
     new_extensions.sort(key=lambda item: item[0].packageName)
 
@@ -222,7 +222,7 @@ def main():
     for i in range(0, total_changed_extensions, ext_per_release):
         batch = changed_extensions[i : i + ext_per_release]
         tag = get_release_tag(i // ext_per_release, release_count)
-        files_to_upload = [file for _, _, jar, _ in batch]
+        files_to_upload = [jar for _, _, jar, _ in batch if jar is not None]
 
         create_release(tag)
         upload_assets(tag, files_to_upload)

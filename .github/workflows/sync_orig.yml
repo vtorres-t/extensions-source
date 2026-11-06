@@ -1,0 +1,32 @@
+name: Sincronizar Fork Automático
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 00:00 UTC (puedes cambiar la hora si lo deseas)
+    - cron: '0 0,12 * * *'
+  workflow_dispatch:
+  # Permite ejecutar el workflow manualmente desde la pestaña "Actions" en GitHub
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+        with:
+          ref: orig
+          fetch-depth: 0
+
+      - name: Sincronizar rama con el repositorio padre
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 1. Configurar git con el usuario del bot de GitHub
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@://github.com"
+          
+          # 2. Sincronizar la rama "orig" usando GitHub CLI
+          gh repo sync ${{ github.repository }} --branch orig

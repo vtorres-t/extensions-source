@@ -8,12 +8,15 @@ from pathlib import Path
 REPO_NAME = "vtorres-t/ext"
 RETRY_ATTEMPTS = 4
 RETRY_BASE_DELAY = 60  # Documented minimum wait; doubles per attempt.
+SERVER_ERROR_DELAY = 10  # Initial fast wait for server issues (502, 503, 504).
 UPLOAD_CHUNK_SIZE = 80
 UPLOAD_CHUNK_INTERVAL = 30
 
 def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
     attempt = 1
     delay = RETRY_BASE_DELAY
+    server_delay = SERVER_ERROR_DELAY
+
     while True:
         result = subprocess.run(
             ["gh", *args],
@@ -28,9 +31,17 @@ def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
         if any(success_error in error for success_error in success_errors):
             return result.stdout.strip()
 
-        if "secondary rate limit" in error and attempt < RETRY_ATTEMPTS:
+        # 1. Errores de servidor (502 Bad Gateway, 503, 504, etc.)
+        if any(err in error for err in ["502", "503", "504", "server error"]) and attempt < RETRY_ATTEMPTS:
+            retry_delay = server_delay
+            server_delay *= 2
+            reason = "GitHub Server Error"
+
+        elif "secondary rate limit" in error and attempt < RETRY_ATTEMPTS:
             retry_delay = delay
             delay *= 2
+            reason = "GitHub secondary rate limit hit"
+
         elif "api rate limit exceeded" in error and attempt < RETRY_ATTEMPTS:
             rate_limit = subprocess.run(
                 ["gh", "api", "rate_limit", "--jq", ".resources.core.reset"],
@@ -44,11 +55,13 @@ def run_gh(*args: str, success_errors: tuple[str, ...] = ()) -> str:
                     int(rate_limit.stdout.strip()) - int(time.time()) + 10,
                     RETRY_BASE_DELAY,
                 )
+            reason = "GitHub primary rate limit exceeded"
+
         else:
             raise RuntimeError(f"gh {' '.join(args)} failed: {result.stderr.strip()}")
 
         print(
-            f"GitHub rate limit hit; retrying in {retry_delay}s "
+            f"{reason}; retrying in {retry_delay}s "
             f"(attempt {attempt}/{RETRY_ATTEMPTS})"
         )
         time.sleep(retry_delay)

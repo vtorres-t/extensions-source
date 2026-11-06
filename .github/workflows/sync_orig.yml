@@ -1,4 +1,4 @@
-name: Sincronizar Fork Automático
+name: Syc Fork orig
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
   # Permite ejecutar el workflow manualmente desde la pestaña "Actions" en GitHub
 
 jobs:
-  sincronizar:
+  sync:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,7 +20,7 @@ jobs:
           ref: orig
           fetch-depth: 0
 
-      - name: Sincronizar rama con el repositorio padre
+      - name: Sincronizar rama orig con el repositorio padre
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

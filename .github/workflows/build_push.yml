@@ -350,11 +350,9 @@ jobs:
     needs: [prepare, build-extensions]
     # Run whenever there's anything to publish, new/changed builds OR only deletions
     if: >-
-      always() &&
       github.repository == 'vtorres-t/extensions-source' &&
       needs.prepare.result == 'success' &&
-      needs.build-extensions.result != 'failure' &&
-      needs.build-extensions.result != 'cancelled' &&
+      needs.build-extensions.result == 'success' &&
       needs.prepare.outputs.delete != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 120

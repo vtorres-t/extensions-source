@@ -915,7 +915,7 @@ val html = runWebView<String> {
 
 - `runWebView(timeout, configure)` suspends until `resolve`/`reject` is called inside `configure`, or `timeout` (default 30s) elapses; it always runs on the main thread internally.
 - The `WebViewScope` DSL exposes:
-  - **Settings:** `javaScriptEnabled`, `domStorageEnabled`, `blockImages`, `useWideViewPort`, `loadWithOverviewMode`, `userAgent` (spoofs matching `Sec-CH-UA` client hints on Chromium 119+), and `setOriginMatchedHeader(name, value, allowedOriginRules)` (Chromium 142+; sets a header on every request to the matching origins in place of WebView's own value; it is set on the WebView's profile, so it stays for every WebView of the app until the app is closed). Audio is always muted automatically across all `runWebView` instances (Chromium 122+).
+  - **Settings:** `javaScriptEnabled`, `domStorageEnabled`, `blockImages`, `useWideViewPort`, `loadWithOverviewMode`, `userAgent` (spoofs matching `Sec-CH-UA` client hints on Chromium 119+), and `setOriginMatchedHeader(name, value, allowedOriginRules)` (Chromium 142+, rejects the run if unsupported, so check `originMatchedHeaderSupported` first where the run can go on without it; sets a header on every request to the matching origins in place of WebView's own value; it is set on the WebView's profile, so it stays for every WebView of the app until the app is closed). Audio is always muted automatically across all `runWebView` instances (Chromium 122+).
   - **Navigation hooks:** `onPageStarted`, `onPageFinished`, `onReceivedError`.
   - **Request interception:** `interceptRequest` to inspect/replace/block resource loads (runs on a background thread). `proxyRequest(request, client) { ... }` sends a GET through a KeiSource client instead and hands the response to the WebView: the headers WebView passes, after the optional edit block, plus the browser headers of its `User-Agent`. WebView's own `X-Requested-With` is added after interception, so it isn't sent. It returns null for what it leaves to the WebView (other methods, subframes, stylesheets, fonts).
   - **Pre-DOM JavaScript Injection** (like the bridges below, call these before `loadUrl`/`loadData`; they only apply to later navigations):
@@ -923,7 +923,6 @@ val html = runWebView<String> {
     - `addJavaScriptOnEvent(script, event, worldName, allowedOriginRules)`: Injects on `InjectionEvent.DOCUMENT_START` (default) or `InjectionEvent.DOCUMENT_END`, optionally targeting an isolated execution `worldName`. **Requires Chromium 146+**; has **no fallback** and immediately fails (`reject`s) on older engines.
   - **JavaScript Bridges:**
     - `webMessageBridge(name, allowedOriginRules, worldName, handler)`: Modern, asynchronous, origin-scoped 2-way message bridge (`window.<name>.postMessage(msg)` and `window.<name>.onmessage`). The handler receives `(message, replyProxy)` where `replyProxy.postMessage(reply)` and `replyProxy.evaluateJs(script)` can interact with the sender frame, and `replyProxy.sourceOrigin`/`replyProxy.isMainFrame` identify it. Both calls work from any thread, but a `replyProxy` belongs to the page that sent the message: calls may go unanswered once the frame navigates, so use a timeout and have the new page send a message. `replyProxy.evaluateJs` passes JSON text to its callback, gives null or the text `null` when the script failed or the page went away, and doesn't await promises. A simplified `(message) -> Unit` overload is also available. The handler runs on the main thread. The default `allowedOriginRules` of `*` lets every frame (including third-party iframes) post messages, so restrict it to the expected origin (e.g. `setOf("https://example.com")`) whenever a message can complete the run. Requires Chromium 116+ (`replyProxy.evaluateJs` requires Chromium 146+ and rejects otherwise); on older WebView engines (< Chromium 116), transparently falls back to an `addJavascriptInterface` bridge exposing `window.<name>.postMessage(message)` with debug logging (replying via `replyProxy` is unsupported on the fallback path and rejects; origin rules are ignored and the sender origin is null). With a `worldName`, the object exists only in that isolated world, so only scripts injected into the same world with `addJavaScriptOnEvent` can reach it; they share the page's DOM but none of its JavaScript. That requires Chromium 146+ and rejects otherwise, with no fallback.
-    - `jsBridge(name, handler)`: Deprecated legacy synchronous bridge exposing `window.<name>.post(message)`. Supported on all Android versions. Use `webMessageBridge` instead.
   - **Execution & Navigation:** `loadUrl`, `loadData`, `stopLoading`, `evaluateJs`, and `poll(interval)` to repeat checks on the main thread until resolved.
 - For the common case of just reading a `localStorage` value after loading a page, use the ready-made `getLocalStorage(url, key)` helper instead of writing your own `runWebView` call.
 - `runWebViewBlocking(call, ...)` exists for non-suspend call sites (e.g. inside an OkHttp interceptor where you must pass the interceptor's chain.call()) - only use it there, never from a suspend function.
@@ -1142,9 +1141,11 @@ val entry = directory.entries.first { it.name == "001.jpg" }
 val imageBytes = client.readZipEntry(zipUrl, entry).buffer().readByteArray()
 ```
 
-Both are suspend `OkHttpClient` extensions that take the source's own `headers` unless you pass some. `client.zipDirectory` gets the archive size from `Content-Range` and handles ZIP64; `client.readZipEntry` streams and decompresses only that one entry. Use them instead of downloading the full ZIP into a `ZipInputStream`, which forces the entire archive into memory.
+Both are suspend `OkHttpClient` extensions that take the source's own `headers` unless you pass some. `client.zipDirectory` gets the archive size from `Content-Range` and handles ZIP64; both need a server that honours the Range header and throw an `IOException` otherwise; `client.readZipEntry` streams and decompresses only that one entry. Use them instead of downloading the full ZIP into a `ZipInputStream`, which forces the entire archive into memory.
 
-To serve entries as pages from an image interceptor, which can't suspend, put the entry's fields in the page URL and read it with the blocking building blocks: `chain.proceed(request.newBuilder().range(entry.dataRange).build())`, then `readEntry(response.body.source(), entry.compressedSize, entry.method)`.
+Entry names are read as UTF-8 unless the archive stores them in a local charset without flagging them, as Japanese archivers often do with Shift-JIS. Pass that charset for those: `client.zipDirectory(zipUrl, charset = Charset.forName("MS932"))`. Names the archive flags as UTF-8, or that carry a matching Info-ZIP Unicode Path field, are still read as UTF-8.
+
+To serve entries as pages from an image interceptor, which can't suspend, put the entry's fields in the page URL (`localHeaderAllowance` too, for long names) and read it with the blocking building blocks: `chain.proceed(request.newBuilder().range(dataRange(offset, compressedSize, localHeaderAllowance)).build())`, then `readEntry(response.rangeSource(), compressedSize, method)`; `rangeSource()` throws an `IOException` when the server ignored the Range header. Malformed or encrypted entries throw `ZipException`, an `IOException`, so they fail the image load like any network error.
 
 ##### Jsoup helpers - `asJsoup` / `attrOrNull` / `textOrNull`
 
@@ -1186,8 +1187,9 @@ val directText = element.ownTextOrNull() // excludes text of nested child elemen
 import keiyoushi.utils.MarkdownDescription
 
 description = MarkdownDescription.Builder()
-    .rating(score) // out of 10, or set `max`; optional `votes`
-    .info(year, type) // a run of rating, info and fields shares one line
+    .rating(score) // out of 10, or set `max`; optional `votes`. On its own line
+    .info(year, type) // a run of info and fields shares one line, right under the rating
+    .separator() // a horizontal rule, dropped when it would come first, last or doubled
     .description(document.selectFirst(".synopsis")) // HTML or plain text; `markdown()` for site Markdown
     .field("Publisher", publisher)
     .altTitles(altTitles)

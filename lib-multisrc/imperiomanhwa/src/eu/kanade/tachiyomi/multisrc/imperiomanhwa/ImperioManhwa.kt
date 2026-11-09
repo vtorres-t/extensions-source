@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.multisrc.imperiomanhwa
 import android.util.Base64
 import android.webkit.WebResourceResponse
 import android.widget.Toast
+import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.network.HttpException
@@ -77,11 +78,8 @@ abstract class ImperioManhwa :
             if (hide18Plus && request.url.host == baseHttpUrl.host) {
                 newRequestBuilder
                     .addHeader("Cookie", "cp=0")
-                    .build()
-                chain.proceed(newRequestBuilder)
-            } else {
-                chain.proceed(newRequestBuilder)
             }
+            chain.proceed(newRequestBuilder.build())
         }
 
     override suspend fun getPopularManga(page: Int) = library(page, listOf("orden" to "vistas"))

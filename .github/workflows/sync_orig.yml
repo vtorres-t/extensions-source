@@ -1,4 +1,4 @@
-name: Syc Fork orig
+name: Syc Fork Orig
 
 on:
   schedule:
@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout del repositorio
+      - name: Checkout del repo
         uses: actions/checkout@v4
         with:
           ref: orig
           fetch-depth: 0
           token: ${{ secrets.BUILD_PREVIEW_TOKEN }}
 
-      - name: Sinc rama orig con el repositorio padre
+      - name: Sync rama orig con el repo padre
         env:
           GH_TOKEN: ${{ secrets.BUILD_PREVIEW_TOKEN }}
         run: |

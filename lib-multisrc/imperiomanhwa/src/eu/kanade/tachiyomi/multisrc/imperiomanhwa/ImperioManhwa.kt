@@ -67,12 +67,12 @@ abstract class ImperioManhwa :
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
-    override fun OkHttpClient.Builder.configureClient() = rateLimit(rateLimit) { it.host == baseHttpUrl.host }
+    override fun OkHttpClient.Builder.configureClient() = rateLimit(customRateLimit) { it.host == baseHttpUrl.host }
         .addInterceptor { chain ->
             val request = chain.request()
             val newRequestBuilder = request.newBuilder()
 
-            newRequestBuilder.header("User-Agent", userAgent)
+            newRequestBuilder.header("User-Agent", customUserAgent)
 
             if (hide18Plus && request.url.host == baseHttpUrl.host) {
                 newRequestBuilder
@@ -307,9 +307,14 @@ abstract class ImperioManhwa :
 
     private val hide18Plus get() = preferences.getBoolean(HIDE_18_PLUS, HIDE_18_PLUS_DEFAULT)
 
-    private val rateLimit get() = preferences.getBoolean(RATE_LIMIT_PREF, RATE_LIMIT_DEFAULT)
+    private val customRateLimit get() = preferences.getString(RATE_LIMIT_PREF, RATE_LIMIT_DEFAULT.toString())
+        ?.toIntOrNull()
+        ?.coerceAtLeast(1)
+        ?: RATE_LIMIT_DEFAULT
 
-    private val userAgent get() = preferences.getBoolean(USER_AGENT_PREF, USER_AGENT_DEFAULT)
+    private val customUserAgent get() = preferences.getString(USER_AGENT_PREF, USER_AGENT_DEFAULT)
+        ?.takeIf { it.isNotBlank() }
+        ?: USER_AGENT_DEFAULT
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {

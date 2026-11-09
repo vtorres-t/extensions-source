@@ -2,7 +2,6 @@ name: Syc Fork orig
 
 on:
   schedule:
-    # Se ejecuta todos los días a las 00:00 UTC
     - cron: '0 0,12 * * *'
   workflow_dispatch:
 
@@ -22,7 +21,7 @@ jobs:
           token: ${{ secrets.BUILD_PREVIEW_TOKEN }}
 
       - name: Sincronizar rama orig con el repositorio padre
-        env:K
+        env:
           GH_TOKEN: ${{ secrets.BUILD_PREVIEW_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"

@@ -2,7 +2,7 @@ name: Syc Fork orig
 
 on:
   schedule:
-    # Se ejecuta todos los días a las 00:00 UTC (puedes cambiar la hora si lo deseas)
+    # Se ejecuta todos los días a las 00:00 UTC
     - cron: '0 0,12 * * *'
   workflow_dispatch:
   # Permite ejecutar el workflow manualmente desde la pestaña "Actions" en GitHub

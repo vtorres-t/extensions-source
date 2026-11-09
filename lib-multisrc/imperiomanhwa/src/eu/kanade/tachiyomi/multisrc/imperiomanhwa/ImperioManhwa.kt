@@ -67,17 +67,20 @@ abstract class ImperioManhwa :
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
-    override fun OkHttpClient.Builder.configureClient() = rateLimit(2) { it.host == baseHttpUrl.host }
+    override fun OkHttpClient.Builder.configureClient() = rateLimit(rateLimit) { it.host == baseHttpUrl.host }
         .addInterceptor { chain ->
             val request = chain.request()
+            val newRequestBuilder = request.newBuilder()
+
+            newRequestBuilder.header("User-Agent", userAgent)
 
             if (hide18Plus && request.url.host == baseHttpUrl.host) {
-                val newRequest = request.newBuilder()
+                newRequestBuilder
                     .addHeader("Cookie", "cp=0")
                     .build()
-                chain.proceed(newRequest)
+                chain.proceed(newRequestBuilder)
             } else {
-                chain.proceed(request)
+                chain.proceed(newRequestBuilder)
             }
         }
 
@@ -304,6 +307,10 @@ abstract class ImperioManhwa :
 
     private val hide18Plus get() = preferences.getBoolean(HIDE_18_PLUS, HIDE_18_PLUS_DEFAULT)
 
+    private val rateLimit get() = preferences.getBoolean(RATE_LIMIT_PREF, RATE_LIMIT_DEFAULT)
+
+    private val userAgent get() = preferences.getBoolean(USER_AGENT_PREF, USER_AGENT_DEFAULT)
+
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
         SwitchPreferenceCompat(screen.context).apply {
             key = REMOVE_PREMIUM_CHAPTERS
@@ -322,11 +329,54 @@ abstract class ImperioManhwa :
             summary = "Ocultar mangas para adultos en las búsquedas y listados"
             setDefaultValue(HIDE_18_PLUS_DEFAULT)
         }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = RATE_LIMIT_PREF
+            title = "Límite de peticiones (Rate Limit)"
+            summary = "Intervalo mínimo o número de peticiones. Por defecto: %s"
+            setDefaultValue(RATE_LIMIT_DEFAULT.toString())
+            dialogTitle = "Establecer límite de peticiones"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val newValueInt = newValue.toString().toIntOrNull()
+                if (newValueInt != null && newValueInt > 0) {
+                    Toast.makeText(screen.context, "Reinicia la app para aplicar el nuevo límite", Toast.LENGTH_LONG).show()
+                    true
+                } else {
+                    Toast.makeText(screen.context, "Introduce un número válido mayor a 0", Toast.LENGTH_LONG).show()
+                    false
+                }
+            }
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = USER_AGENT_PREF
+            title = "User-Agent Personalizado"
+            summary = "Cadena de User-Agent que enviará el navegador. Por defecto: %s"
+            setDefaultValue(USER_AGENT_DEFAULT)
+            dialogTitle = "Modificar User-Agent"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                if (newValue.toString().isNotBlank()) {
+                    Toast.makeText(screen.context, "Reinicia la app para aplicar el nuevo User-Agent", Toast.LENGTH_LONG).show()
+                    true
+                } else {
+                    Toast.makeText(screen.context, "El User-Agent no puede estar vacío", Toast.LENGTH_LONG).show()
+                    false
+                }
+            }
+        }.also(screen::addPreference)
     }
 
     companion object {
         private const val REMOVE_PREMIUM_CHAPTERS = "removePremiumChapters"
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
+
+        private const val RATE_LIMIT_PREF = "rateLimitPreference"
+        private const val RATE_LIMIT_DEFAULT = 2
+
+        private const val USER_AGENT_PREF = "userAgentPreference"
+        private const val USER_AGENT_DEFAULT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"
 
         private const val HIDE_18_PLUS = "hide18Plus"
         private const val HIDE_18_PLUS_DEFAULT = true

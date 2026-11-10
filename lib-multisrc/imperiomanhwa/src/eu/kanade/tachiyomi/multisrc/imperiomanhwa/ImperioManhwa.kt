@@ -336,7 +336,7 @@ abstract class ImperioManhwa :
         EditTextPreference(screen.context).apply {
             key = RATE_LIMIT_PREF
             title = "Límite de peticiones (Rate Limit)"
-            summary = "Intervalo mínimo o número de peticiones. Por defecto: %s"
+            summary = "Intervalo mínimo o número de peticiones. Por defecto: " + RATE_LIMIT_DEFAULT.toString()
             setDefaultValue(RATE_LIMIT_DEFAULT.toString())
             dialogTitle = "Establecer límite de peticiones"
 
@@ -355,9 +355,19 @@ abstract class ImperioManhwa :
         EditTextPreference(screen.context).apply {
             key = USER_AGENT_PREF
             title = "User-Agent Personalizado"
-            summary = "Cadena de User-Agent que enviará el navegador. Por defecto: %s"
+            summary = "Cadena de User-Agent que enviará el navegador."
             setDefaultValue(USER_AGENT_DEFAULT)
             dialogTitle = "Modificar User-Agent"
+
+            setOnBindEditTextListener { editText ->
+                editText.layoutParams = android.view.ViewGroup.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                editText.isSingleLine = true
+                editText.maxLines = 1
+                editText.setHorizontallyScrolling(true)
+            }
 
             setOnPreferenceChangeListener { _, newValue ->
                 if (newValue.toString().isNotBlank()) {

@@ -362,7 +362,7 @@ abstract class ImperioManhwa :
             setOnBindEditTextListener { editText ->
                 editText.layoutParams = android.view.ViewGroup.LayoutParams(
                     android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
                 )
                 editText.isSingleLine = true
                 editText.maxLines = 1

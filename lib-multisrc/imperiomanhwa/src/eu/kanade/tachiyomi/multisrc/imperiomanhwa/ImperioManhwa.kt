@@ -76,8 +76,13 @@ abstract class ImperioManhwa :
             newRequestBuilder.header("User-Agent", customUserAgent)
 
             if (hide18Plus && request.url.host == baseHttpUrl.host) {
-                newRequestBuilder
-                    .addHeader("Cookie", "cp=0")
+                val existingCookies = request.header("Cookie")
+                val newCookies = if (existingCookies.isNullOrEmpty()) {
+                    "cp=0"
+                } else {
+                    "$existingCookies; cp=0"
+                }
+                newRequestBuilder.header("Cookie", newCookies)
             }
             chain.proceed(newRequestBuilder.build())
         }

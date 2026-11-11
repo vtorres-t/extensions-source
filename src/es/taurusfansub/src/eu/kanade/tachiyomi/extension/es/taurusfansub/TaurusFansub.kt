@@ -7,6 +7,7 @@ import androidx.preference.SwitchPreferenceCompat
 import eu.kanade.tachiyomi.multisrc.madara.Madara
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.model.SChapter
+import eu.kanade.tachiyomi.source.model.SManga
 import keiyoushi.annotation.Source
 import keiyoushi.network.rateLimit
 import keiyoushi.utils.getPreferences
@@ -33,6 +34,24 @@ abstract class TaurusFansub :
 
     private val preferences: SharedPreferences by lazy { getPreferences() }
 
+    override fun archiveManga(element: Element, id: String): SManga? {
+        val manga = super.archiveManga(element, id) ?: return null
+
+        val imageElement = element.selectFirst("img.wp-post-image")
+            ?: element.selectFirst(".manga__thumb_item img")
+            ?: element.selectFirst("img.img-responsive")
+            ?: element.selectFirst("img")
+
+        val imageUrl = imageElement?.attr("abs:src")?.takeIf { it.isNotBlank() }
+            ?: imageElement?.attr("abs:data-src")
+            ?: imageElement?.attr("abs:data-lazy-src")
+
+        if (!imageUrl.isNullOrBlank()) {
+            manga.thumbnail_url = imageUrl
+        }
+
+        return manga
+    }
     override fun chapterListSelector(): String {
         val base = super.chapterListSelector()
         return if (preferences.removePremium) "$base:not(.scheduled)" else base

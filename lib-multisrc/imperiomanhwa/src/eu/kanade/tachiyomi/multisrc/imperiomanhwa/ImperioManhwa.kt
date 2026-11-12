@@ -68,7 +68,11 @@ abstract class ImperioManhwa :
 
     private val baseHttpUrl get() = baseUrl.toHttpUrl()
 
-    override fun OkHttpClient.Builder.configureClient() = rateLimit(customRateLimit) { it.host == baseHttpUrl.host }
+    override fun OkHttpClient.Builder.configureClient() = rateLimit(
+        permits = customRateLimit,
+        period = customTimeRateLimit.seconds,
+        interval = customTimeIntervalRateLimit.milliseconds,
+    ) { it.host == baseHttpUrl.host }
         .addInterceptor { chain ->
             val request = chain.request()
             val newRequestBuilder = request.newBuilder()
@@ -315,6 +319,16 @@ abstract class ImperioManhwa :
         ?.coerceAtLeast(1)
         ?: RATE_LIMIT_DEFAULT
 
+    private val customTimeRateLimit get() = preferences.getString(RATE_LIMIT_TIME_PREF, RATE_LIMIT_TIME_DEFAULT.toString())
+        ?.toIntOrNull()
+        ?.coerceAtLeast(1)
+        ?: RATE_LIMIT_TIME_DEFAULT
+
+    private val customTimeIntervalRateLimit get() = preferences.getString(RATE_LIMIT_TIME_INTERVAL_PREF, RATE_LIMIT_TIME_INTERVAL_DEFAULT.toString())
+        ?.toIntOrNull()
+        ?.coerceAtLeast(1)
+        ?: RATE_LIMIT_TIME_INTERVAL_DEFAULT
+
     private val customUserAgent get() = preferences.getString(USER_AGENT_PREF, USER_AGENT_DEFAULT)
         ?.takeIf { it.isNotBlank() }
         ?: USER_AGENT_DEFAULT
@@ -341,9 +355,47 @@ abstract class ImperioManhwa :
         EditTextPreference(screen.context).apply {
             key = RATE_LIMIT_PREF
             title = "Límite de peticiones (Rate Limit)"
-            summary = "Intervalo mínimo o número de peticiones. Por defecto: " + RATE_LIMIT_DEFAULT.toString()
+            summary = "Intervalo mínimo o número de peticiones (num. peticiones). Por defecto: " + RATE_LIMIT_DEFAULT.toString()
             setDefaultValue(RATE_LIMIT_DEFAULT.toString())
             dialogTitle = "Establecer límite de peticiones"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val newValueInt = newValue.toString().toIntOrNull()
+                if (newValueInt != null && newValueInt > 0) {
+                    Toast.makeText(screen.context, "Reinicia la app para aplicar el nuevo límite", Toast.LENGTH_LONG).show()
+                    true
+                } else {
+                    Toast.makeText(screen.context, "Introduce un número válido mayor a 0", Toast.LENGTH_LONG).show()
+                    false
+                }
+            }
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = RATE_LIMIT_TIME_PREF
+            title = "Límite de peticiones por tiempo (Rate Limit)"
+            summary = "Tiempo para el numero de peticiones (seconds). Por defecto: " + RATE_LIMIT_TIME_DEFAULT.toString()
+            setDefaultValue(RATE_LIMIT_TIME_DEFAULT.toString())
+            dialogTitle = "Establecer límite de tiempo de las peticiones"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val newValueInt = newValue.toString().toIntOrNull()
+                if (newValueInt != null && newValueInt > 0) {
+                    Toast.makeText(screen.context, "Reinicia la app para aplicar el nuevo límite", Toast.LENGTH_LONG).show()
+                    true
+                } else {
+                    Toast.makeText(screen.context, "Introduce un número válido mayor a 0", Toast.LENGTH_LONG).show()
+                    false
+                }
+            }
+        }.also(screen::addPreference)
+
+        EditTextPreference(screen.context).apply {
+            key = RATE_LIMIT_TIME_INTERVAL_PREF
+            title = "Límite de tiempo para el intervalo (Rate Limit)"
+            summary = "Intervalo de tiempo para el numero de peticiones de descanso (milliseconds). Por defecto: " + RATE_LIMIT_TIME_INTERVAL_DEFAULT.toString()
+            setDefaultValue(RATE_LIMIT_TIME_INTERVAL_DEFAULT.toString())
+            dialogTitle = "Establecer límite de tiempo de descanso de las peticiones"
 
             setOnPreferenceChangeListener { _, newValue ->
                 val newValueInt = newValue.toString().toIntOrNull()
@@ -391,7 +443,13 @@ abstract class ImperioManhwa :
         private const val REMOVE_PREMIUM_CHAPTERS_DEFAULT = true
 
         private const val RATE_LIMIT_PREF = "rateLimitPreference"
-        private const val RATE_LIMIT_DEFAULT = 2
+        private const val RATE_LIMIT_DEFAULT = 1
+
+        private const val RATE_LIMIT_TIME_PREF = "rateLimitTimePreference"
+        private const val RATE_LIMIT_TIME_DEFAULT = 2
+
+        private const val RATE_LIMIT_TIME_INTERVAL_PREF = "rateLimitTimeIntervalPreference"
+        private const val RATE_LIMIT_TIME_INTERVAL_DEFAULT = 200
 
         private const val USER_AGENT_PREF = "userAgentPreference"
         private const val USER_AGENT_DEFAULT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36"

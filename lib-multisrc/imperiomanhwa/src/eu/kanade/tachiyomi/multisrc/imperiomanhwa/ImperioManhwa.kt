@@ -50,6 +50,8 @@ import java.time.LocalDate
 import java.time.MonthDay
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 abstract class ImperioManhwa :

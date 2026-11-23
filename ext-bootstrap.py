@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 
 LIB_VERSION = "1.6"
 
-
 def ascii_validator(value: str) -> str:
     value = value.strip()
     try:

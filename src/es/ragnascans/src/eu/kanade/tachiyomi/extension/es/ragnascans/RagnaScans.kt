@@ -41,7 +41,11 @@ abstract class RagnaScans : KeiSource() {
             }
     }
 
-    private val dateFormat = DateTimeFormatter.ofPattern("d MMMM, yyyy", Locale.forLanguageTag("es")).withZone(ZoneId.of("UTC"))
+    private val dateFormat: DateTimeFormatter = DateTimeFormatterBuilder()
+        .parseCaseInsensitive()
+        .appendPattern("d MMMM, yyyy")
+        .toFormatter(Locale.forLanguageTag("es"))
+        .withZone(ZoneId.of("UTC"))
 
     // ============================== Popular ==============================
     override suspend fun getPopularManga(page: Int): MangasPage {

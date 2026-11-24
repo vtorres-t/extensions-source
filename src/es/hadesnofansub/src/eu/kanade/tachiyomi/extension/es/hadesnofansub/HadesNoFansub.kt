@@ -8,6 +8,9 @@ import java.util.Locale
 @Source
 abstract class HadesNoFansub : Madara() {
     override val chapterDateFormat = DateTimeFormatter.ofPattern("MMMM dd, yyyy", Locale("es"))
+
+    override val chapterDateSelector = "span.chapter-release-date span.timediff"
+
     override val chapterMode = ChapterMode.MangaAjax
 
     override val mangaSubString = "tmo"

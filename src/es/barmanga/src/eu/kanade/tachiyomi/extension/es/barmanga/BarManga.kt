@@ -26,6 +26,7 @@ abstract class BarManga : Madara() {
         val action = ACTION_REGEX.find(script)?.groupValues?.last() ?: return emptyList()
         val chapterKey = CHAPTER_KEY_REGEX.find(script)?.groupValues?.last() ?: return emptyList()
         return tokens
+            .filterValues { it.isNotBlank() && !it.startsWith("data:") }
             .map { (page, token) -> PageDto(nonce, token, page, action, chapterKey) }
             .mapIndexed { index, dto ->
                 Page(index, document.location(), dto.toJsonString())

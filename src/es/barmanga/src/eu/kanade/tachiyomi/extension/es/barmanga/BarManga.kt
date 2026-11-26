@@ -60,7 +60,6 @@ abstract class BarManga : Madara() {
             .mapIndexed { index, page -> Page(index, page.url, page.imageUrl) }
     }
 
-
     override fun getImageRequest(page: Page): Request {
         val dto = runCatching {
             page.imageUrl!!.parseAs<PageDto>()

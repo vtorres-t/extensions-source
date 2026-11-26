@@ -37,6 +37,30 @@ abstract class BarManga : Madara() {
             }
     }
 
+    override fun pageListParse(document: Document): List<Page> {
+        val script = document.selectFirst(".manga-reader-container + script")?.data()
+        if (script != null) {
+            val tokens = PAGE_TOKENS_REGEX.find(script)?.groupValues?.last()?.parseAs<Map<String, String>>() ?: return emptyList()
+            val nonce = NONCE_REGEX.find(script)?.groupValues?.last() ?: return emptyList()
+            val action = ACTION_REGEX.find(script)?.groupValues?.last() ?: return emptyList()
+            val chapterKey = CHAPTER_KEY_REGEX.find(script)?.groupValues?.last() ?: return emptyList()
+            return tokens
+                .filterValues { it.isNotBlank() && !it.startsWith("data:") }
+                .map { (page, token) -> PageDto(nonce, token, page, action, chapterKey) }
+                .mapIndexed { index, dto ->
+                    Page(index, document.location(), dto.toJsonString())
+                }
+        }
+
+        return super.pageListParse(document)
+            .filter { page ->
+                val targetUrl = page.imageUrl ?: page.url
+                targetUrl.isNotBlank() && !targetUrl.startsWith("data:")
+            }
+            .mapIndexed { index, page -> Page(index, page.url, page.imageUrl) }
+    }
+
+
     override fun getImageRequest(page: Page): Request {
         val dto = runCatching {
             page.imageUrl!!.parseAs<PageDto>()
